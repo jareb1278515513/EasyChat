@@ -46,8 +46,12 @@ export default {
   uploadPublicKey(publicKey) {
     return apiClient.post('/keys', { public_key: publicKey });
   },
-  getPublicKey(username) {
-    return apiClient.get(`/users/${username}/public_key`);
+  getPublicKey(username, token) {
+    return apiClient.get(`/users/${username}/public_key`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
   },
   // We can add other API calls here later
 }; 

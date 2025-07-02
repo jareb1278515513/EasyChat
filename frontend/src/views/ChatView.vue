@@ -64,10 +64,10 @@
 import socket from '@/services/socket';
 import api from '@/services/api';
 import * as crypto from '@/utils/crypto';
+import { getPeer, destroyPeer } from '@/services/peer';
 
-// Simple in-memory store for peer connections
-const peerConnections = {};
-// Store for symmetric keys for each chat session
+// Store for active PeerJS data connections, and symmetric keys for each chat session.
+const dataConnections = {};
 const symmetricKeys = {};
 
 export default {
@@ -76,7 +76,7 @@ export default {
     return {
       friends: [],
       friendRequests: [],
-      messages: {}, // Changed to an object to store messages per recipient
+      messages: {},
       newMessage: '',
       currentRecipient: null,
       newFriendUsername: '',
@@ -85,6 +85,7 @@ export default {
     };
   },
   methods: {
+    // --- PeerJS Connection Management ---
     selectRecipient(username) {
       this.currentRecipient = username;
       if (!this.messages[username]) {
@@ -94,100 +95,76 @@ export default {
       if (friend) {
         friend.hasNewMessages = false;
       }
-      this.initPeerConnection(username);
+      
+      if (!dataConnections[username] || !dataConnections[username].open) {
+        console.log(`Attempting to connect to peer: ${username}`);
+        const peer = getPeer();
+        if (peer) {
+          const conn = peer.connect(username, { reliable: true });
+          this.setupConnectionHandlers(conn);
+        } else {
+          alert("P2P service is not available. Please re-login.");
+        }
+      } else {
+        console.log(`Connection to ${username} already exists.`);
+      }
     },
 
-    async initPeerConnection(username, isInitiator = true) {
-      // Fetch user info to get IP and Port for P2P connection
-      try {
-        const response = await api.getUserInfo(username);
-        if (!response.data.is_online) {
-          alert(`${username} is offline.`);
-          return;
-        }
-        // NOTE: In a real-world scenario, you would use the returned IP address.
-        // For development on localhost, STUN servers will handle IP discovery.
-        // const { ip_address, port } = response.data;
-      } catch (error) {
-        alert(`Could not fetch info for ${username}. You might not be friends.`);
-        return;
-      }
-
-      if (peerConnections[username] && ['new', 'connecting', 'connected'].includes(peerConnections[username].connectionState)) {
-        console.log(`Connection to ${username} already exists or is in progress. State: ${peerConnections[username].connectionState}`);
-        return;
-      }
-      console.log(`Initializing P2P connection to ${username} as ${isInitiator ? 'initiator' : 'receiver'}`);
+    setupConnectionHandlers(conn) {
+      // This handler is used for both incoming and outgoing connections
+      dataConnections[conn.peer] = conn;
       
-      const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-      peerConnections[username] = pc;
+      conn.on('data', (data) => {
+        this.handleNewP2PMessage({ from: conn.peer, rawMessage: data });
+      });
 
-      pc.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit('webrtc_signal', { to: username, signal: { type: 'candidate', candidate: event.candidate } });
+      conn.on('open', () => {
+        console.log(`Data connection with ${conn.peer} is now open.`);
+        // The initiator of the connection is responsible for starting the key exchange
+        if (this.currentRecipient === conn.peer) {
+          this.performKeyExchange(conn.peer, conn);
         }
-      };
+      });
 
-      pc.onconnectionstatechange = () => {
-        console.log(`Connection state with ${username} changed to: ${pc.connectionState}`);
-      };
+      conn.on('close', () => {
+        console.log(`Connection with ${conn.peer} has closed.`);
+        delete dataConnections[conn.peer];
+        delete symmetricKeys[conn.peer];
+      });
 
-      const setupDataChannelHandlers = (dc) => {
-        dc.onopen = async () => {
-          console.log(`Data channel with ${username} is open!`);
-          if (isInitiator) {
-            // Initiator performs the key exchange
-            try {
-              console.log(`Starting key exchange with ${username}`);
-              const { data: { public_key: friendPublicKeyPem } } = await api.getPublicKey(username);
-              const friendPublicKey = await crypto.importPublicKey(friendPublicKeyPem);
-              const symmetricKey = await crypto.generateSymmetricKey();
-              symmetricKeys[username] = symmetricKey; // Store for this session
+      conn.on('error', (err) => {
+        console.error(`Connection error with ${conn.peer}:`, err);
+      });
+    },
 
-              const exportedSymmetricKey = await window.crypto.subtle.exportKey('raw', symmetricKey);
-              const encryptedSymmetricKey = await crypto.encryptWithPublicKey(friendPublicKey, exportedSymmetricKey);
-              
-              // Send the encrypted key, marking it as a special key-exchange message
-              dc.send(JSON.stringify({ type: 'key_exchange', payload: Array.from(new Uint8Array(encryptedSymmetricKey)) }));
-              console.log('Sent encrypted symmetric key.');
-            } catch (err) {
-              console.error('Key exchange failed:', err);
-              alert('Could not establish a secure connection.');
-            }
-          }
-        };
-        dc.onmessage = (e) => this.handleNewP2PMessage({ from: username, rawMessage: e.data });
-        dc.onclose = () => console.log(`Data channel with ${username} has closed.`);
-        dc.onerror = (error) => console.error(`Data channel error with ${username}:`, error);
-      };
+    // --- E2EE and Messaging ---
+    async performKeyExchange(username, conn) {
+      try {
+        console.log(`Starting key exchange with ${username}`);
+        const { data: { public_key: friendPublicKeyPem } } = await api.getPublicKey(username);
+        const friendPublicKey = await crypto.importPublicKey(friendPublicKeyPem);
+        const symmetricKey = await crypto.generateSymmetricKey();
+        symmetricKeys[username] = symmetricKey;
 
-      if (isInitiator) {
-        const dataChannel = pc.createDataChannel('chat');
-        pc.dataChannel = dataChannel; // Assign immediately
-        setupDataChannelHandlers(dataChannel);
+        const exportedSymmetricKey = await window.crypto.subtle.exportKey('raw', symmetricKey);
+        const encryptedSymmetricKey = await crypto.encryptWithPublicKey(friendPublicKey, exportedSymmetricKey);
         
-        pc.createOffer()
-          .then(offer => pc.setLocalDescription(offer))
-          .then(() => {
-            socket.emit('webrtc_signal', { to: username, signal: { type: 'offer', sdp: pc.localDescription } });
-          });
-      } else {
-        pc.ondatachannel = (event) => {
-          const dataChannel = event.channel;
-          pc.dataChannel = dataChannel; // Assign immediately
-          setupDataChannelHandlers(dataChannel);
-        };
+        conn.send(JSON.stringify({ type: 'key_exchange', payload: Array.from(new Uint8Array(encryptedSymmetricKey)) }));
+        console.log(`Sent encrypted symmetric key to ${username}.`);
+      } catch (err) {
+        console.error('Key exchange failed:', err);
+        alert('Could not establish a secure connection.');
+        if (conn) conn.close();
       }
     },
 
     async handleNewP2PMessage(data) {
       const { from, rawMessage } = data;
-      const message = JSON.parse(rawMessage);
+      const message = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage;
 
-      // Handle key exchange
       if (message.type === 'key_exchange') {
         try {
-          console.log(`Received encrypted symmetric key from ${from}.`);
+          console.log(`Received key exchange request from ${from}.`);
           const privateKeyPem = localStorage.getItem('privateKey');
           const privateKey = await crypto.importPrivateKey(privateKeyPem);
           const encryptedKey = new Uint8Array(message.payload).buffer;
@@ -201,165 +178,118 @@ export default {
         return;
       }
       
-      // Handle regular chat messages
-      const symmetricKey = symmetricKeys[from];
-      if (!symmetricKey) {
-        console.warn(`No symmetric key found for ${from}. Ignoring message.`);
-        return;
-      }
-      
-      try {
-        const { iv, ciphertext } = message;
-        const plaintext = await crypto.decryptSymmetric(symmetricKey, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
+      if (message.type === 'chat_message') {
+        const symmetricKey = symmetricKeys[from];
+        if (!symmetricKey) return console.warn(`No symmetric key for ${from}.`);
+        
+        try {
+          const { iv, ciphertext } = message;
+          const plaintext = await crypto.decryptSymmetric(symmetricKey, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
 
-        if (!this.messages[from]) {
-          this.messages[from] = [];
-        }
-        this.messages[from].push({ from, message: plaintext });
+          if (!this.messages[from]) this.messages[from] = [];
+          this.messages[from].push({ from, message: plaintext });
 
-        if (from !== this.currentRecipient) {
-          const friend = this.friends.find(f => f.username === from);
-          if (friend) {
-            friend.hasNewMessages = true;
+          if (from !== this.currentRecipient) {
+            const friend = this.friends.find(f => f.username === from);
+            if (friend) friend.hasNewMessages = true;
           }
+        } catch (err) {
+          console.error('Failed to decrypt message:', err);
         }
-      } catch (err) {
-        console.error('Failed to decrypt message:', err);
       }
     },
 
     async sendMessage() {
-      if (!this.newMessage || !this.currentRecipient) return;
-      const pc = peerConnections[this.currentRecipient];
+      if (!this.newMessage.trim() || !this.currentRecipient) return;
+      
+      const conn = dataConnections[this.currentRecipient];
       const symmetricKey = symmetricKeys[this.currentRecipient];
 
-      if (pc && pc.dataChannel && pc.dataChannel.readyState === 'open' && symmetricKey) {
+      if (conn && conn.open && symmetricKey) {
         try {
           const { iv, ciphertext } = await crypto.encryptSymmetric(symmetricKey, this.newMessage);
-          pc.dataChannel.send(JSON.stringify({
+          
+          conn.send(JSON.stringify({
+            type: 'chat_message',
             iv: Array.from(iv),
             ciphertext: Array.from(new Uint8Array(ciphertext))
           }));
-          
-          this.messages[this.currentRecipient].push({ from: 'me', message: this.newMessage });
+
+          if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
+          this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage });
           this.newMessage = '';
-        } catch (err) {
-          console.error('Failed to encrypt and send message:', err);
+        } catch (error) {
+          console.error('Failed to send message:', error);
           alert('Failed to send secure message.');
         }
       } else {
-        alert('Secure P2P connection not established yet.');
+        alert('Secure connection is not established. Cannot send message.');
       }
     },
 
-    handleWebRTCSignal(data) {
-        const { from, signal } = data;
-        let pc = peerConnections[from];
-
-        if (!pc) {
-            this.initPeerConnection(from, false); // This is the receiver
-            pc = peerConnections[from];
-        }
-
-        if (signal.type === 'offer') {
-            pc.setRemoteDescription(new RTCSessionDescription(signal.sdp))
-              .then(() => pc.createAnswer())
-              .then(answer => pc.setLocalDescription(answer))
-              .then(() => {
-                  socket.emit('webrtc_signal', {
-                      to: from,
-                      signal: { type: 'answer', sdp: pc.localDescription }
-                  });
-              });
-        } else if (signal.type === 'answer') {
-            pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-        } else if (signal.type === 'candidate') {
-            pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
-        }
-    },
-
-    async sendRequest() {
-      if (!this.newFriendUsername) return;
-      try {
-        const response = await api.sendFriendRequest(this.newFriendUsername);
-        alert(response.data.message);
-        this.newFriendUsername = '';
-      } catch (error) {
-        alert(error.response?.data?.error || 'Failed to send friend request');
-      }
-    },
-    async removeFriend(friendId) {
-      if (!confirm('Are you sure you want to remove this friend?')) return;
-      try {
-        await api.removeFriend(friendId);
-        this.fetchFriends(); // Refresh friend list
-        if (this.currentRecipient === this.friends.find(f => f.id === friendId)?.username) {
-            this.currentRecipient = null; // Deselect if the removed friend was active
-        }
-      } catch (error) {
-        alert(error.response?.data?.error || 'Failed to remove friend');
-      }
-    },
-    async respondToRequest(requestId, action) {
-      try {
-        await api.respondToFriendRequest(requestId, action);
-        this.fetchFriendRequests(); // Refresh requests
-        if (action === 'accept') {
-          this.fetchFriends(); // Refresh friends list
-        }
-      } catch (error) {
-        alert(error.response?.data?.error || `Failed to ${action} request`);
-      }
-    },
+    // --- UI and Data Fetching ---
     logout() {
-      localStorage.clear();
-      socket.disconnect();
-      this.$router.push('/login');
+      console.log('Logging out...');
+      destroyPeer();
+      if (socket.connected) socket.disconnect();
+      localStorage.removeItem('token');
+      localStorage.removeItem('username');
+      localStorage.removeItem('privateKey');
+      this.$router.push('/');
     },
-    handleNewMessage(data) {
-      // Show message only if it's from the currently selected friend
-      if (data.from === this.currentRecipient) {
-        this.messages[this.currentRecipient].push(data);
-      } else {
-        // Optional: Add a notification for messages from other friends
-        console.log(`Received message from ${data.from}, but not in active chat.`);
-      }
+
+    fetchFriends() {
+      api.getFriends()
+        .then(response => {
+          const newFriends = response.data;
+          // Preserve new message indicators
+          newFriends.forEach(newFriend => {
+            const oldFriend = this.friends.find(f => f.id === newFriend.id);
+            if (oldFriend) {
+              newFriend.hasNewMessages = oldFriend.hasNewMessages;
+            }
+          });
+          this.friends = newFriends;
+        })
+        .catch(error => console.error('Error fetching friends list:', error));
     },
-    handleFriendStatusUpdate(data) {
-      const friend = this.friends.find(f => f.username === data.username);
-      if (friend) {
-        friend.is_online = data.is_online;
-        if (data.is_online) {
-          friend.ip_address = data.ip_address;
-          friend.port = data.port;
-        }
-      }
+
+    fetchFriendRequests() {
+      api.getFriendRequests()
+        .then(response => {
+          this.friendRequests = response.data;
+        })
+        .catch(error => console.error('Error fetching friend requests:', error));
     },
-    handleNewFriendRequest(data) {
-      // Avoid adding duplicates if the list was already fetched
-      if (!this.friendRequests.some(req => req.id === data.id)) {
-        this.friendRequests.unshift(data); // Add to the top of the list
-      }
-      alert(`You have a new friend request from ${data.requester_username}!`);
+    
+    sendRequest() {
+      if (!this.newFriendUsername.trim()) return;
+      api.sendFriendRequest(this.newFriendUsername)
+        .then(() => {
+          alert('Friend request sent.');
+          this.newFriendUsername = '';
+        })
+        .catch(error => alert('Error sending request: ' + (error.response?.data?.message || error.message)));
     },
-    async fetchFriends() {
-      try {
-        const response = await api.getFriends();
-        this.friends = response.data;
-      } catch (error) {
-        console.error('Failed to fetch friends:', error);
-        // If auth fails (e.g., token expired), redirect to login
-        if (error.response && error.response.status === 401) {
-          this.logout();
-        }
-      }
+
+    respondToRequest(requestId, action) {
+      api.respondToFriendRequest(requestId, action)
+        .then(() => {
+          alert(`Request ${action}ed.`);
+          this.fetchFriendRequests();
+          this.fetchFriends();
+        })
+        .catch(error => alert('Error responding to request: ' + (error.response?.data?.message || error.message)));
     },
-    async fetchFriendRequests() {
-      try {
-        const response = await api.getFriendRequests();
-        this.friendRequests = response.data;
-      } catch (error) {
-        console.error('Failed to fetch friend requests:', error);
+    
+    removeFriend(friendId) {
+      if (confirm('Are you sure you want to remove this friend?')) {
+        api.removeFriend(friendId)
+          .then(() => {
+            alert('Friend removed.');
+            this.fetchFriends();
+          })
+          .catch(error => alert('Error removing friend: ' + (error.response?.data?.message || error.message)));
       }
     }
   },
@@ -367,30 +297,28 @@ export default {
     this.currentUser = localStorage.getItem('username') || 'User';
     this.fetchFriends();
     this.fetchFriendRequests();
-    
-    // Set up polling for friend status
-    this.statusInterval = setInterval(this.fetchFriends, 60000); // 60000ms = 1 minute
+    this.statusInterval = setInterval(this.fetchFriends, 10000);
 
-    socket.on('new_message', this.handleNewMessage);
-    socket.on('friend_status_update', this.handleFriendStatusUpdate);
-    socket.on('new_friend_request', this.handleNewFriendRequest);
-    socket.on('webrtc_signal', this.handleWebRTCSignal);
+    const peer = getPeer();
+    if (peer) {
+      peer.on('connection', (conn) => {
+        console.log(`Incoming connection from ${conn.peer}`);
+        this.setupConnectionHandlers(conn);
+      });
+      peer.on('error', (err) => {
+        console.error('A global peer error occurred:', err);
+        if (err.type === 'peer-unavailable') {
+          alert(`Could not connect to ${this.currentRecipient}. They may be offline or unreachable.`);
+        }
+      });
+    } else {
+      alert("P2P service is not available. Please re-login.");
+      this.$router.push('/');
+    }
   },
   beforeUnmount() {
-    // Clean up the interval when the component is destroyed
     clearInterval(this.statusInterval);
-
-    // Clean up listeners to prevent memory leaks
-    socket.off('new_message', this.handleNewMessage);
-    socket.off('friend_status_update', this.handleFriendStatusUpdate);
-    socket.off('new_friend_request', this.handleNewFriendRequest);
-    socket.off('webrtc_signal', this.handleWebRTCSignal);
-
-    // Close all peer connections
-    for (const user in peerConnections) {
-      peerConnections[user].close();
-      delete peerConnections[user];
-    }
+    // Note: PeerJS connection is destroyed on logout, not just component unmount
   }
 };
 </script>

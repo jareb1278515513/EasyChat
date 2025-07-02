@@ -21,6 +21,7 @@
 <script>
 import api from '@/services/api';
 import socket from '@/services/socket';
+import { initializePeer } from '@/services/peer';
 import { generateRsaKeyPair, exportKeyToPem } from '@/utils/crypto';
 
 export default {
@@ -60,6 +61,16 @@ export default {
           console.error('Key generation or upload failed:', error);
           alert('Could not set up encryption keys. Please try again.');
           return; // Stop if key setup fails
+        }
+
+        // Initialize PeerJS connection
+        try {
+          console.log('Initializing PeerJS with username:', this.username);
+          initializePeer(this.username);
+        } catch (error) {
+          console.error('PeerJS initialization failed:', error);
+          alert('Could not set up P2P connection. Please try again.');
+          return;
         }
 
         // Disconnect any existing connection before starting a new one
