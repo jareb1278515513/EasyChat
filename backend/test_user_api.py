@@ -5,11 +5,11 @@ from app.models import User
 from config import TestingConfig
 from unittest.mock import patch
 
+# 用户模型相关测试用例
 class UserModelCase(unittest.TestCase):
     def setUp(self):
         """
-        Set up a test environment.
-        This method is called before each test function.
+        设置测试环境。
         """
         self.app = create_app(TestingConfig)
         self.app_context = self.app.app_context()
@@ -19,23 +19,22 @@ class UserModelCase(unittest.TestCase):
 
     def tearDown(self):
         """
-        Clean up the test environment.
-        This method is called after each test function.
+        清理测试环境。
         """
         db.session.remove()
         db.drop_all()
         self.app_context.pop()
 
     def test_password_hashing(self):
-        """Test password hashing and verification."""
+        """测试密码哈希和验证功能"""
         u = User(username='susan', email='susan@example.com')
         u.set_password('cat')
-        self.assertFalse(u.check_password('dog'))
-        self.assertTrue(u.check_password('cat'))
+        self.assertFalse(u.check_password('dog'))  # 错误密码应返回False
+        self.assertTrue(u.check_password('cat'))   # 正确密码应返回True
 
     def test_registration(self):
-        """Test user registration endpoint."""
-        # Test Case 1: Successful Registration
+        """测试用户注册接口"""
+        # 测试用例1：注册成功
         response = self.client.post(
             '/api/register',
             data=json.dumps({
@@ -48,7 +47,7 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertIn('User registered successfully', response.get_data(as_text=True))
 
-        # Test Case 2: Duplicate Username
+        # 测试用例2：用户名重复
         response = self.client.post(
             '/api/register',
             data=json.dumps({
@@ -61,7 +60,7 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Username already exists', response.get_data(as_text=True))
 
-        # Test Case 3: Missing Password
+        # 测试用例3：缺少密码
         response = self.client.post(
             '/api/register',
             data=json.dumps({
@@ -74,8 +73,8 @@ class UserModelCase(unittest.TestCase):
         self.assertIn('Missing username, email, or password', response.get_data(as_text=True))
 
     def test_login(self):
-        """Test user login endpoint."""
-        # First, register a user to have a test subject
+        """测试用户登录接口."""
+        # 首先注册一个用户作为测试对象
         self.client.post(
             '/api/register',
             data=json.dumps({
@@ -86,7 +85,7 @@ class UserModelCase(unittest.TestCase):
             content_type='application/json'
         )
 
-        # Test Case 1: Successful Login
+        # 测试用例1：登录成功
         response = self.client.post(
             '/api/login',
             data=json.dumps({
@@ -99,7 +98,7 @@ class UserModelCase(unittest.TestCase):
         json_response = response.get_json()
         self.assertIn('token', json_response)
 
-        # Test Case 2: Wrong Password
+        # 测试用例2：密码错误
         response = self.client.post(
             '/api/login',
             data=json.dumps({
@@ -111,7 +110,7 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
         self.assertIn('Invalid username or password', response.get_data(as_text=True))
 
-        # Test Case 3: Non-existent User
+        # 测试用例3：用户不存在
         response = self.client.post(
             '/api/login',
             data=json.dumps({
@@ -124,8 +123,8 @@ class UserModelCase(unittest.TestCase):
         self.assertIn('Invalid username or password', response.get_data(as_text=True))
 
     def test_friends_api(self):
-        """Test the full friend request and management workflow."""
-        # --- Setup: Create users and log in ---
+        """测试整个好友请求和管理的工作流程."""
+        # 设置：创建用户并登录
         u1 = User(username='john', email='john@example.com')
         u2 = User(username='susan', email='susan@example.com')
         u3 = User(username='david', email='david@example.com')
@@ -138,18 +137,18 @@ class UserModelCase(unittest.TestCase):
         db.session.add_all([u1, u2, u3])
         db.session.commit()
 
-        # Login user 1 to get a token
+        # 登录用户1以获取令牌
         response = self.client.post('/api/login', data=json.dumps({'username': 'john', 'password': 'cat'}), content_type='application/json')
         token1 = response.get_json()['token']
         headers1 = {'Authorization': f'Bearer {token1}'}
 
-        # Login user 2 to get a token
+        # 登录用户2以获取令牌
         response = self.client.post('/api/login', data=json.dumps({'username': 'susan', 'password': 'dog'}), content_type='application/json')
         token2 = response.get_json()['token']
         headers2 = {'Authorization': f'Bearer {token2}'}
         
-        # --- Test Friend Request Flow ---
-        # Test Case 1: John sends a friend request to Susan
+        # 测试好友请求流程
+        # 测试用例1：用户1向用户2发送好友请求
         with patch('app.api.friends.socketio.emit') as mock_emit:
             response = self.client.post(
                 '/api/friend-requests',
@@ -159,9 +158,9 @@ class UserModelCase(unittest.TestCase):
             )
             self.assertEqual(response.status_code, 201)
             self.assertIn('Friend request sent successfully', response.get_data(as_text=True))
-            mock_emit.assert_called_once() # Verify WebSocket notification was sent
+            mock_emit.assert_called_once() # 验证WebSocket通知已发送
 
-        # Test Case 2: Susan gets her friend requests
+        # 测试用例2：用户2获取她的好友请求
         response = self.client.get('/api/friend-requests', headers=headers2)
         self.assertEqual(response.status_code, 200)
         requests = response.get_json()
@@ -169,7 +168,7 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(requests[0]['requester_username'], 'john')
         request_id = requests[0]['id']
 
-        # Test Case 3: Susan accepts the friend request
+        # 测试用例3：用户2接受好友请求
         response = self.client.put(
             f'/api/friend-requests/{request_id}',
             headers=headers2,
@@ -179,35 +178,35 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('Friend request accepted successfully', response.get_data(as_text=True))
 
-        # Test Case 4: Verify they are now friends
-        # Check John's friends
+        # 测试用例4：验证他们现在是朋友
+        # 检查用户1的朋友列表
         response = self.client.get('/api/friends', headers=headers1)
         self.assertEqual(response.status_code, 200)
         friends_list1 = response.get_json()
         self.assertEqual(len(friends_list1), 1)
         self.assertEqual(friends_list1[0]['username'], 'susan')
-        # Check Susan's friends
+        # 检查用户2的朋友列表
         response = self.client.get('/api/friends', headers=headers2)
         self.assertEqual(response.status_code, 200)
         friends_list2 = response.get_json()
         self.assertEqual(len(friends_list2), 1)
         self.assertEqual(friends_list2[0]['username'], 'john')
 
-        # --- Test Remove Friend ---
-        # Test Case 5: John removes Susan as a friend
+        # --- 测试移除好友 ---
+        # 测试用例5：用户1移除用户2为好友
         friend_to_remove_id = User.query.filter_by(username='susan').first().id
         response = self.client.delete(f'/api/friends/{friend_to_remove_id}', headers=headers1)
         self.assertEqual(response.status_code, 200)
         self.assertIn('Friend removed successfully', response.get_data(as_text=True))
 
-        # Verify Susan is no longer in John's friend list
+        # 验证用户2不再用户1的好友列表中
         response = self.client.get('/api/friends', headers=headers1)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(response.get_json()), 0)
 
     def test_online_user_info_api(self):
-        """Test the API for getting online user information."""
-        # 1. Create two users
+        """测试获取在线用户信息的API."""
+        # 1. 创建两个用户
         u1 = User(username='user1', email='user1@example.com')
         u1.set_password('pw1')
         u2 = User(username='user2', email='user2@example.com')
@@ -215,32 +214,32 @@ class UserModelCase(unittest.TestCase):
         db.session.add_all([u1, u2])
         db.session.commit()
 
-        # 2. Login as user1 to get a token and set online status
+        # 2. 登录user1以获取令牌并设置在线状态
         response = self.client.post('/api/login', data=json.dumps({'username': 'user1', 'password': 'pw1'}), content_type='application/json')
         self.assertEqual(response.status_code, 200)
         
-        # Simulate user1 being online after login
+        # 模拟user1登录后在线
         user1 = User.query.filter_by(username='user1').first()
         user1.is_online = True
         user1.ip_address = '127.0.0.1'
         user1.port = 5000
         db.session.commit()
 
-        # 3. Login as user2 to get a token
+        # 3. 登录user2以获取令牌
         response = self.client.post('/api/login', data=json.dumps({'username': 'user2', 'password': 'pw2'}), content_type='application/json')
         token2 = response.get_json()['token']
         headers2 = {'Authorization': f'Bearer {token2}'}
 
-        # 4. As user2, try to get user1's info (should be denied)
+        # 4. 作为user2，尝试获取user1的信息，应被拒绝
         response = self.client.get('/api/users/user1/info', headers=headers2)
         self.assertEqual(response.status_code, 403)
         self.assertIn('Access denied', response.get_data(as_text=True))
 
-        # 5. Add user1 and user2 as friends
+        # 5. 将user1和user2互加为好友
         u1.add_friend(u2)
         db.session.commit()
 
-        # 6. As user2, try to get user1's info again (should succeed now)
+        # 6. 作为user2，再次尝试获取user1的信息，现在应成功
         response = self.client.get('/api/users/user1/info', headers=headers2)
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
@@ -248,21 +247,21 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(data['ip_address'], '127.0.0.1')
         self.assertEqual(data['port'], 5000)
 
-        # 7. Simulate user1 disconnecting
+        # 7. 模拟user1断开连接
         user1.is_online = False
         user1.ip_address = None
         user1.port = None
         db.session.commit()
 
-        # 8. As user2, get user1's info (should show offline)
+        # 8. 作为user2，获取user1的信息，应显示为离线
         response = self.client.get('/api/users/user1/info', headers=headers2)
         self.assertEqual(response.status_code, 200)
         data = response.get_json()
         self.assertFalse(data['is_online'])
 
     def test_public_key_api(self):
-        """Test the public key upload and retrieval API."""
-        # Create a user and log them in to get a token
+        """测试公钥上传和检索的API."""
+        # 创建一个用户并登录以获取令牌
         u1 = User(username='key_user', email='key@example.com')
         u1.set_password('secret')
         db.session.add(u1)
@@ -276,7 +275,7 @@ class UserModelCase(unittest.TestCase):
         token = login_resp.get_json()['token']
         headers = {'Authorization': f'Bearer {token}'}
         
-        # Test Case 1: Upload a public key
+        # 测试用例1：上传公钥
         public_key_data = "----BEGIN PUBLIC KEY----\\nFAKE_KEY_CONTENT\\n----END PUBLIC KEY----"
         upload_resp = self.client.post(
             '/api/keys',
@@ -287,14 +286,14 @@ class UserModelCase(unittest.TestCase):
         self.assertEqual(upload_resp.status_code, 200)
         self.assertIn('Public key updated successfully', upload_resp.get_data(as_text=True))
 
-        # Test Case 2: Retrieve the public key by username
+        # 测试用例2：通过用户名检索公钥
         get_key_resp = self.client.get(f'/api/users/key_user/public_key', headers=headers)
         self.assertEqual(get_key_resp.status_code, 200)
         key_data = get_key_resp.get_json()
         self.assertEqual(key_data['username'], 'key_user')
         self.assertEqual(key_data['public_key'], public_key_data)
 
-        # Test Case 3: Try to retrieve key for a user who hasn't uploaded one
+        # 测试用例3：尝试检索未上传公钥的用户的公钥
         u2 = User(username='nokey_user', email='nokey@example.com')
         u2.set_password('pass')
         db.session.add(u2)
@@ -304,8 +303,8 @@ class UserModelCase(unittest.TestCase):
         self.assertIn('User has not uploaded a public key', get_key_resp_fail.get_data(as_text=True))
 
     def test_admin_api(self):
-        """Test admin-only API endpoints."""
-        # Create users: one admin, one regular
+        """测试仅限管理员的API端点."""
+        # 创建用户：一个管理员，一个普通用户
         admin_user = User(username='admin', email='admin@example.com', is_admin=True)
         admin_user.set_password('adminpass')
         reg_user = User(username='regular', email='regular@example.com')
@@ -313,7 +312,7 @@ class UserModelCase(unittest.TestCase):
         db.session.add_all([admin_user, reg_user])
         db.session.commit()
 
-        # --- Login as regular user ---
+        # 以普通用户身份登录
         login_resp_reg = self.client.post(
             '/api/login',
             data=json.dumps({'username': 'regular', 'password': 'regpass'}),
@@ -322,12 +321,12 @@ class UserModelCase(unittest.TestCase):
         reg_token = login_resp_reg.get_json()['token']
         reg_headers = {'Authorization': f'Bearer {reg_token}'}
 
-        # Test Case 1: Regular user tries to access admin route
+        # 测试用例1：普通用户尝试访问管理员路由
         response_reg = self.client.get('/api/admin/users', headers=reg_headers)
         self.assertEqual(response_reg.status_code, 403)
         self.assertIn('Administrator access required', response_reg.get_data(as_text=True))
 
-        # --- Login as admin user ---
+        # 以管理员身份登录
         login_resp_admin = self.client.post(
             '/api/login',
             data=json.dumps({'username': 'admin', 'password': 'adminpass'}),
@@ -336,29 +335,25 @@ class UserModelCase(unittest.TestCase):
         admin_token = login_resp_admin.get_json()['token']
         admin_headers = {'Authorization': f'Bearer {admin_token}'}
 
-        # Test Case 2: Admin user successfully accesses admin route
+        # 测试用例2：管理员成功访问管理员路由
         response_admin = self.client.get('/api/admin/users', headers=admin_headers)
         self.assertEqual(response_admin.status_code, 200)
         user_list = response_admin.get_json()
         self.assertIsInstance(user_list, list)
-        # The database will contain users from other tests as well, so we check for presence
+        # 数据库中将包含其他测试的用户，因此我们只检查存在性
         usernames = [u['username'] for u in user_list]
         self.assertIn('admin', usernames)
         self.assertIn('regular', usernames)
 
-        # --- Test Force Disconnect ---
-        # To test this properly, we need to simulate a user being online.
-        # We can't make a real socket connection here, but we can fake the state.
+        # 测试强制断开连接
         reg_user_db = User.query.filter_by(username='regular').first()
         reg_user_db.is_online = True
         db.session.commit()
 
-        # We need to mock the socketio and get_sid_by_username functions
-        # as they won't work correctly without a live socketio server.
         with patch('app.api.admin.get_sid_by_username', return_value='fake_sid') as mock_get_sid:
             with patch('app.api.admin.socketio') as mock_socketio:
                 
-                # Test Case 3: Admin successfully disconnects an online user
+                # 测试用例3：管理员成功断开在线用户
                 response = self.client.post(
                     '/api/admin/users/regular/disconnect',
                     headers=admin_headers
@@ -366,11 +361,10 @@ class UserModelCase(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertIn('Disconnect signal sent', response.get_data(as_text=True))
                 
-                # Verify that our mocked functions were called
                 mock_get_sid.assert_called_once_with('regular')
                 mock_socketio.disconnect.assert_called_once_with('fake_sid')
 
-        # Test Case 4: Try to disconnect an offline user
+        # 测试用例4：尝试断开离线用户
         reg_user_db.is_online = False
         db.session.commit()
         response = self.client.post('/api/admin/users/regular/disconnect', headers=admin_headers)
@@ -378,4 +372,4 @@ class UserModelCase(unittest.TestCase):
         self.assertIn('User is already offline', response.get_data(as_text=True))
 
 if __name__ == '__main__':
-    unittest.main(verbosity=2) 
+    unittest.main(verbosity=2)

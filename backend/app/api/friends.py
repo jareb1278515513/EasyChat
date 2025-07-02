@@ -4,11 +4,15 @@ from app.api.auth import token_required
 from app.models import User, FriendRequest
 from app import db, socketio
 
+#好友相关操作均需要token认证
+
 @bp.route('/friends', methods=['GET'])
 @token_required
 def get_friends():
-    """
-    Retrieves the list of friends for the currently authenticated user.
+    """获取当前用户的好友列表
+    返回:
+        - 好友ID、用户名、在线状态和连接信息
+        - 按添加时间排序
     """
     user = g.current_user
     friends = user.friends.all()
@@ -23,8 +27,18 @@ def get_friends():
 @bp.route('/friend-requests', methods=['POST'])
 @token_required
 def send_friend_request():
-    """
-    Sends a friend request to another user and notifies them via WebSocket.
+    """发送好友请求
+    请求参数:
+        - username: 目标用户名
+    业务逻辑:
+        1. 检查不能添加自己为好友
+        2. 检查目标用户是否存在
+        3. 检查是否已是好友
+        4. 检查是否已有待处理请求
+        5. 创建新请求并发送WebSocket通知
+    返回:
+        - 成功: 201状态码和成功消息
+        - 失败: 400/404状态码和错误原因
     """
     data = request.get_json()
     if not data or 'username' not in data:
@@ -68,8 +82,10 @@ def send_friend_request():
 @bp.route('/friend-requests', methods=['GET'])
 @token_required
 def get_friend_requests():
-    """
-    Gets all incoming friend requests for the current user.
+    """获取当前用户收到的好友请求
+    返回:
+        - 请求ID、发送者ID、发送者用户名和时间戳
+        - 仅包含状态为pending的请求
     """
     user = g.current_user
     requests = FriendRequest.query.filter_by(receiver_id=user.id, status='pending').all()
@@ -90,8 +106,18 @@ def get_friend_requests():
 @bp.route('/friend-requests/<int:request_id>', methods=['PUT'])
 @token_required
 def respond_to_friend_request(request_id):
-    """
-    Accepts or rejects a friend request.
+    """处理好友请求(接受/拒绝)
+    路径参数:
+        - request_id: 好友请求ID
+    请求参数:
+        - action: accept/reject
+    业务逻辑:
+        1. 验证请求状态必须为pending
+        2. 接受请求会建立双向好友关系
+        3. 拒绝请求仅更新状态
+    返回:
+        - 成功: 操作结果消息
+        - 失败: 400/403状态码和错误原因
     """
     data = request.get_json()
     action = data.get('action')
@@ -122,8 +148,15 @@ def respond_to_friend_request(request_id):
 @bp.route('/friends/<int:friend_id>', methods=['DELETE'])
 @token_required
 def remove_friend(friend_id):
-    """
-    Removes a friend and deletes any existing friend requests between them.
+    """删除好友关系
+    路径参数:
+        - friend_id: 好友用户ID
+    业务逻辑:
+        1. 解除双向好友关系
+        2. 删除双方之间的所有好友请求记录
+    返回:
+        - 成功: 200状态码和成功消息
+        - 失败: 400/404状态码和错误原因
     """
     current_user = g.current_user
     friend_to_remove = User.query.get(friend_id)

@@ -8,8 +8,15 @@ from app import socketio, db
 @bp.route('/admin/users', methods=['GET'])
 @admin_required
 def get_all_users():
-    """
-    [ADMIN] Retrieves a list of all users and their status.
+    """[管理员]获取所有用户信息
+    权限要求:
+        - 管理员权限(通过admin_required装饰器验证)
+    返回数据:
+        - 用户ID、用户名、邮箱
+        - 在线状态、IP地址
+        - 管理员标志
+    安全考虑:
+        - 仅返回必要信息，不包含敏感数据如密码哈希
     """
     users = User.query.all()
     return jsonify([{
@@ -24,8 +31,18 @@ def get_all_users():
 @bp.route('/admin/users/<string:username>/disconnect', methods=['POST'])
 @admin_required
 def disconnect_user(username):
-    """
-    [ADMIN] Forcibly disconnects a user by their username.
+    """[管理员]强制断开用户连接
+    路径参数:
+        - username: 目标用户名
+    业务逻辑:
+        1. 验证目标用户存在
+        2. 检查用户当前在线状态
+        3. 通过WebSocket强制断开连接
+        4. 处理状态不一致情况(DB与WebSocket会话不同步)
+    返回:
+        - 200: 操作成功
+        - 404: 用户不存在
+        - 500: 状态不一致
     """
     user_to_disconnect = User.query.filter_by(username=username).first()
     if not user_to_disconnect:

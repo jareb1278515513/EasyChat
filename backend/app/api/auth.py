@@ -4,8 +4,19 @@ import jwt
 from app.models import User
 
 def token_required(f):
+    """JWT认证装饰器
+    功能:
+        1. 从Authorization头获取token
+        2. 验证token有效性
+        3. 验证用户是否存在
+        4. 将当前用户存入g对象
+    异常处理:
+        - 401: token缺失/过期/无效
+        - 401: 用户不存在
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # 从Authorization头获取token
         token = None
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -15,7 +26,9 @@ def token_required(f):
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
+            # 解码并验证JWT
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
+            # 验证用户是否存在
             g.current_user = User.query.get(data['user_id'])
             if not g.current_user:
                  return jsonify({'message': 'Token is invalid!'}), 401
@@ -26,11 +39,18 @@ def token_required(f):
         
         return f(*args, **kwargs)
 
-    return decorated 
+    return decorated
 
 def admin_required(f):
+    """管理员权限装饰器(继承自token_required函数)
+    额外功能:
+        1. 验证用户is_admin标志
+    异常处理:
+        - 403: 非管理员用户
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
+        # 复用token_required的验证逻辑
         token = None
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -49,9 +69,10 @@ def admin_required(f):
         except jwt.InvalidTokenError:
             return jsonify({'message': 'Token is invalid!'}), 401
 
+        # 额外检查管理员权限
         if not g.current_user.is_admin:
             return jsonify({'message': 'Administrator access required!'}), 403
         
         return f(*args, **kwargs)
 
-    return decorated 
+    return decorated
