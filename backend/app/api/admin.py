@@ -1,4 +1,5 @@
 from flask import jsonify, g
+from flask_socketio import disconnect
 from app.api import bp
 from app.api.auth import admin_required
 from app.models import User
@@ -54,7 +55,8 @@ def disconnect_user(username):
     sid = get_sid_by_username(username)
     if sid:
         # This will trigger the 'disconnect' event handler in socket_events.py
-        socketio.disconnect(sid)
+        # We must specify the namespace, as this is called from an HTTP request context
+        disconnect(sid, namespace='/')
         return jsonify({'message': f'Disconnect signal sent to {username}.'}), 200
     else:
         # This case might happen if the in-memory map is out of sync with the DB

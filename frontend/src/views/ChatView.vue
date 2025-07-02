@@ -6,7 +6,7 @@
       </div>
       
       <!-- Friend Requests Section -->
-      <div class="friend-requests" v-if="friendRequests.length > 0">
+      <div v-if="friendRequests.length > 0" class="friend-requests bordered-and-shadowed">
         <h4>好友请求</h4>
         <ul>
           <li v-for="req in friendRequests" :key="req.id" class="friend-request-item">
@@ -21,20 +21,21 @@
 
       <!-- Friends List Section -->
       <div class="friends-header">
-        <h3>好友</h3>
+        <h3>好友列表</h3>
         <button @click="fetchFriends" class="refresh-btn" title="刷新好友列表">🔄</button>
       </div>
       <div class="add-friend-form">
-        <input type="text" v-model="newFriendUsername" @keyup.enter="sendRequest" placeholder="发送好友请求">
+        <input type="text" v-model="newFriendUsername" @keyup.enter="sendRequest" placeholder="发送好友请求" class="bordered-and-shadowed">
         <button @click="sendRequest">+</button>
       </div>
       <ul class="friends-list">
         <li v-for="friend in friends" :key="friend.id" 
             @click="selectRecipient(friend.username)"
-            :class="{ active: friend.username === currentRecipient }">
+            :class="{ active: friend.username === currentRecipient }"
+            class="bordered-and-shadowed">
           <div class="friend-info">
             {{ friend.username }}
-            <span :class="['status', friend.is_online ? 'online' : 'offline']"></span>
+            <span :class="['status-dot', friend.is_online ? 'online' : 'offline']"></span>
             <span v-if="friend.hasNewMessages" class="new-message-indicator"></span>
           </div>
           <button @click.stop="removeFriend(friend.id)" class="remove-friend-btn">×</button>
@@ -46,10 +47,10 @@
       <button @click="logout" class="logout-button">登出</button>
     </div>
     <div class="chat-window">
-      <div class="messages-area">
-        <div v-if="!currentRecipient">选择一位好友开始聊天</div>
+      <div class="messages-area bordered-and-shadowed">
+        <div v-if="!currentRecipient" class="placeholder-text">选择一位好友开始聊天</div>
         <div v-else>
-          <div v-for="(msg, index) in messages[currentRecipient]" :key="index" class="message">
+          <div v-for="(msg, index) in messages[currentRecipient]" :key="index" :class="['message', msg.from === currentUser ? 'sent' : 'received']">
             <strong>{{ msg.from }}:</strong>
             <template v-if="msg.type === 'steganography_image'">
               <img :src="msg.imageUrl" alt="Steganography Image" class="chat-image" @click="revealMessage(msg.imageUrl)">
@@ -68,7 +69,7 @@
         </div>
         <input type="file" ref="imageInput" @change="handleImageSelected" accept="image/*" style="display: none;">
         <button @click="triggerImageUpload" class="upload-btn" title="发送图片">🖼️</button>
-        <input type="text" v-model="newMessage" @keyup.enter="sendMessage" :placeholder="imagePreviewUrl ? '输入要隐藏在图片中的消息...' : '输入消息...'">
+        <input type="text" v-model="newMessage" @keyup.enter="sendMessage" :placeholder="imagePreviewUrl ? '输入要隐藏在图片中的消息...' : '输入消息...'" class="bordered-and-shadowed">
         <button @click="sendMessage">发送</button>
       </div>
     </div>
@@ -466,253 +467,247 @@ export default {
 </script>
 
 <style scoped>
+/* 主题色定义 */
 .chat-container {
+  --input-focus: #2d8cf0;
+  --font-color: #323232;
+  --font-color-sub: #666;
+  --bg-color: beige;
+  --main-color: black;
+  --base-bg: lightblue;
+  --container-bg: #f0f2f5;
+  --danger-color: #e74c3c;
+  --success-color: #2ecc71;
+
   display: flex;
   height: 100vh;
-  font-family: Arial, sans-serif;
+  background-color: var(--container-bg);
+  font-family: 'Helvetica Neue', sans-serif;
 }
-.current-user-info {
-  padding: 10px;
-  text-align: center;
-  border-bottom: 1px solid #ddd;
-  background-color: #e9e9e9;
+
+/* 共享样式类 */
+.bordered-and-shadowed {
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
 }
+
+/* 侧边栏 */
 .sidebar {
-  width: 250px;
-  background-color: #f4f4f4;
-  border-right: 1px solid #ddd;
+  width: 280px;
+  background-color: var(--base-bg);
+  border-right: 2px solid var(--main-color);
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  gap: 20px;
 }
-.sidebar h3 {
+
+.current-user-info h4, .friends-header h3, .friend-requests h4 {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--font-color);
   text-align: center;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--main-color);
 }
+
 .friends-header {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10px;
-}
-.refresh-btn {
-  background: none;
-  border: none;
-  font-size: 1.2rem;
-  cursor: pointer;
-  padding: 0;
-  line-height: 1;
-}
-.sidebar ul {
-  list-style: none;
-  padding: 0;
-  flex-grow: 1;
-}
-.sidebar li {
-  padding: 15px;
-  cursor: pointer;
-  border-bottom: 1px solid #ddd;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-.sidebar li.active {
-  background-color: #007aff;
-  color: white;
+
+.add-friend-form {
+  display: flex;
+  gap: 10px;
 }
-.status {
-  height: 10px;
-  width: 10px;
-  border-radius: 50%;
-  display: inline-block;
+
+.add-friend-form input {
+  flex-grow: 1;
 }
-.status.online {
-  background-color: #4cd964;
+
+/* 列表区域 */
+.friends-list, .friend-requests ul {
+  list-style-type: none;
+  padding: 0;
+  margin: 0;
+  overflow-y: auto;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.status.offline {
-  background-color: #ccc;
-}
-.logout-button, .settings-button, .admin-button {
-  width: calc(100% - 20px);
-  padding: 10px;
-  margin: 10px 10px 0 10px;
-  background-color: #f44336;
-  color: white;
-  border: none;
-  border-radius: 4px;
+
+.friends-list li {
+  padding: 10px 15px;
   cursor: pointer;
-  display: block;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
 }
-.settings-button {
-  background-color: #007bff; /* Blue for settings */
+
+.friends-list li:hover {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px var(--main-color);
 }
-.admin-button {
-  background-color: #ffc107; /* Yellow for admin */
-  color: #212529;
+
+.friends-list li.active {
+  background-color: var(--input-focus);
+  color: white;
+  box-shadow: 0 0 var(--main-color);
+  transform: translate(4px, 4px);
 }
-.logout-button:hover, .settings-button:hover, .admin-button:hover {
-  opacity: 0.9;
+
+.friend-info {
+  flex-grow: 1;
 }
+
+/* 聊天窗口 */
 .chat-window {
   flex-grow: 1;
   display: flex;
   flex-direction: column;
+  padding: 20px;
+  gap: 20px;
 }
+
 .messages-area {
   flex-grow: 1;
   padding: 20px;
   overflow-y: auto;
-  border-bottom: 1px solid #ddd;
 }
+
 .message {
-  margin-bottom: 10px;
+  padding: 10px 15px;
+  margin-bottom: 15px;
+  max-width: 80%;
+  width: fit-content;
 }
+.message.sent {
+  margin-left: auto;
+  background-color: #dcf8c6; /* A WhatsApp-like green for sent messages */
+}
+.message.received {
+  margin-right: auto;
+  background-color: white;
+}
+
+
+/* 通用输入框和按钮样式 */
+input[type="text"] {
+  height: 45px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
+  padding: 5px 15px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+input[type="text"]:focus {
+  border: 2px solid var(--input-focus);
+}
+
+button {
+  height: 45px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+button:active {
+  box-shadow: 0px 0px var(--main-color);
+  transform: translate(4px, 4px);
+}
+
+.logout-button, .settings-button, .admin-button {
+  width: 100%;
+}
+.admin-button { background-color: #ffc107; }
+.logout-button { background-color: var(--danger-color); }
+
 .message-input {
   display: flex;
-  padding: 10px;
-  align-items: center;
-  position: relative;
+  gap: 10px;
+  position: relative; /* For positioning the preview */
 }
-.message-input input[type="text"] {
-  flex-grow: 1;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-.message-input button {
-  padding: 10px 15px;
-  margin-left: 10px;
-  background-color: #007aff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.friend-info {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-grow: 1;
-}
-.remove-friend-btn {
-    background: none;
-    border: none;
-    color: #ff3b30;
-    cursor: pointer;
-    font-size: 18px;
-    padding: 0 5px;
-    display: none; /* Hidden by default */
-}
-.sidebar li:hover .remove-friend-btn {
-    display: block; /* Show on hover */
-}
-.add-friend-form {
-    display: flex;
-    padding: 10px;
-    gap: 5px;
-}
-.add-friend-form input {
-    flex-grow: 1;
-    padding: 8px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-}
-.add-friend-form button {
-    padding: 0 12px;
-    background-color: #4cd964;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.friend-requests {
-  padding: 10px;
-  border-bottom: 1px solid #ccc;
-  margin-bottom: 10px;
-}
-.friend-requests h4 {
-  margin-top: 0;
-  text-align: center;
-}
-.friend-requests ul {
-  list-style: none;
-  padding: 0;
-}
-.friend-request-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 0;
-}
-.actions .accept-btn {
-  color: #4cd964;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-weight: bold;
-}
-.actions .reject-btn {
-  color: #ff3b30;
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-weight: bold;
-}
-.friends-list {
-    flex-grow: 1;
-    list-style: none;
-    padding: 0;
-}
-.new-message-indicator {
-  width: 10px;
+.message-input input { flex-grow: 1; }
+.message-input button { width: 100px; }
+.upload-btn { width: 50px; }
+
+/* 其他小组件 */
+.status-dot {
   height: 10px;
-  background-color: #ff3b30;
+  width: 10px;
   border-radius: 50%;
-  margin-left: auto;
-  margin-right: 10px;
+  display: inline-block;
+  margin-left: 8px;
+  border: 1px solid var(--main-color);
 }
-.upload-btn {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+.status-dot.online { background-color: var(--success-color); }
+.status-dot.offline { background-color: var(--font-color-sub); }
+
+/* In-chat image styles */
+.chat-image {
+  max-width: 200px;
+  max-height: 200px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
   cursor: pointer;
-  margin-right: 10px;
+  display: block;
+  margin-top: 5px;
 }
+
+.message .reveal-btn {
+  height: auto;
+  padding: 5px 10px;
+  font-size: 12px;
+  margin-top: 10px;
+}
+
+/* Image Preview Styles */
 .image-preview {
   position: absolute;
-  bottom: 100%;
-  left: 10px;
-  background: #fff;
-  border: 1px solid #ccc;
-  padding: 5px;
-  border-radius: 4px;
-  box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+  bottom: 100%; /* Position above the input bar */
+  left: 50px; /* Align with the text input area */
+  margin-bottom: 10px;
+  background: var(--bg-color);
+  padding: 8px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
+  z-index: 10;
 }
+
 .image-preview img {
-  max-width: 100px;
-  max-height: 100px;
+  max-width: 80px;
+  max-height: 80px;
   display: block;
+  border-radius: 3px;
 }
+
 .clear-preview-btn {
   position: absolute;
-  top: -10px;
-  right: -10px;
-  background: #ff3b30;
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
-  line-height: 20px;
+  top: -12px;
+  right: -12px;
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  line-height: 24px;
   text-align: center;
-  cursor: pointer;
-}
-.chat-image {
-  max-width: 300px;
-  max-height: 300px;
-  border-radius: 4px;
-  cursor: pointer;
-}
-.message .reveal-btn {
-  margin-top: 5px;
+  padding: 0;
+  color: white;
+  background-color: var(--danger-color);
+  border-radius: 50%;
+  border: 2px solid var(--main-color);
 }
 </style> 

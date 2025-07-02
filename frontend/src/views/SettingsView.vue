@@ -1,42 +1,44 @@
 <template>
-  <div class="settings-container">
-    <h2>设置</h2>
+  <div class="page-container">
+    <div class="settings-container">
+      <h2>设置</h2>
 
-    <div class="settings-section">
-      <h3>更改邮箱</h3>
-      <form @submit.prevent="changeEmail">
-        <div class="form-group">
-          <label for="new-email">新邮箱</label>
-          <input type="email" id="new-email" v-model="newEmail" @input="validateEmail" required>
-          <p v-if="emailError" class="error-text">{{ emailError }}</p>
-        </div>
-        <button type="submit" :disabled="!isEmailFormValid">更新邮箱</button>
-      </form>
-    </div>
-
-    <div class="settings-section">
-      <h3>更改密码</h3>
-      <form @submit.prevent="changePassword">
-        <div class="form-group">
-          <label for="current-password">当前密码</label>
-          <input type="password" id="current-password" v-model="currentPassword" required>
-        </div>
-        <div class="form-group">
-          <label for="new-password">新密码</label>
-          <input type="password" id="new-password" v-model="newPassword" @input="evaluatePassword" required>
-           <div v-if="newPassword.length > 0" class="password-strength-meter">
-            <div class="strength-bar" :style="barStyle"></div>
-            <p class="strength-text">{{ strengthText }}</p>
+      <div class="settings-section">
+        <h3>更改邮箱</h3>
+        <form @submit.prevent="changeEmail" class="settings-form">
+          <div class="form-group">
+            <label for="new-email">新邮箱</label>
+            <input type="email" id="new-email" v-model="newEmail" @input="validateEmail" required class="bordered-and-shadowed">
+            <p v-if="emailError" class="error-text">{{ emailError }}</p>
           </div>
-        </div>
-        <div class="form-group">
-          <label for="confirm-password">确认新密码</label>
-          <input type="password" id="confirm-password" v-model="confirmPassword" required>
-        </div>
-        <button type="submit" :disabled="!isPasswordFormValid">更新密码</button>
-      </form>
+          <button type="submit" :disabled="!isEmailFormValid">更新邮箱</button>
+        </form>
+      </div>
+
+      <div class="settings-section">
+        <h3>更改密码</h3>
+        <form @submit.prevent="changePassword" class="settings-form">
+          <div class="form-group">
+            <label for="current-password">当前密码</label>
+            <input type="password" id="current-password" v-model="currentPassword" required class="bordered-and-shadowed">
+          </div>
+          <div class="form-group">
+            <label for="new-password">新密码</label>
+            <input type="password" id="new-password" v-model="newPassword" @input="evaluatePassword" required class="bordered-and-shadowed">
+            <div v-if="newPassword.length > 0" class="password-strength-meter">
+              <div class="strength-bar" :style="barStyle"></div>
+              <p class="strength-text">{{ strengthText }}</p>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="confirm-password">确认新密码</label>
+            <input type="password" id="confirm-password" v-model="confirmPassword" required class="bordered-and-shadowed">
+          </div>
+          <button type="submit" :disabled="!isPasswordFormValid">更新密码</button>
+        </form>
+      </div>
+      <button @click="goBack" class="back-btn">返回</button>
     </div>
-     <button @click="goBack">返回</button>
   </div>
 </template>
 
@@ -145,77 +147,144 @@ export default {
 </script>
 
 <style scoped>
+/* Theme Variables */
 .settings-container {
-  max-width: 500px;
-  margin: 50px auto;
-  padding: 20px;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  --input-focus: #2d8cf0;
+  --font-color: #323232;
+  --font-color-sub: #666;
+  --bg-color: beige;
+  --main-color: black;
+  --base-bg: lightblue;
+  --container-bg: #f0f2f5;
+  --danger-color: #e74c3c;
+  --success-color: #2ecc71;
 }
 
-h2, h3 {
+/* Shared Styles */
+.bordered-and-shadowed {
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  width: 100%;
+  height: 45px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
+  padding: 5px 15px;
+  outline: none;
+  box-sizing: border-box;
+}
+.bordered-and-shadowed:focus {
+  border: 2px solid var(--input-focus);
+}
+
+.page-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: var(--container-bg);
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.settings-container {
+  width: 100%;
+  max-width: 500px;
+  padding: 25px;
+  background: var(--base-bg);
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-family: 'Helvetica Neue', sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+h2 {
+  color: var(--font-color);
+  font-weight: 900;
+  font-size: 24px;
   text-align: center;
-  color: #333;
+  margin: 0 0 15px 0;
+}
+
+h3 {
+  font-weight: 900;
+  color: var(--font-color);
+  text-align: center;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid var(--main-color);
 }
 
 .settings-section {
-  margin-bottom: 30px;
+  padding: 20px;
+  border: 2px solid var(--main-color);
+  border-radius: 5px;
+  background: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+}
+
+.settings-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 label {
-  display: block;
-  margin-bottom: 5px;
-  font-weight: bold;
-}
-
-input[type="email"],
-input[type="password"] {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  box-sizing: border-box;
+  font-weight: 600;
+  color: var(--font-color);
 }
 
 button {
   width: 100%;
-  padding: 10px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
+  height: 45px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
   cursor: pointer;
-  margin-top: 10px;
+  transition: all 0.2s ease-in-out;
 }
 
-button:hover {
-  background-color: #0056b3;
+button:active {
+  box-shadow: 0px 0px var(--main-color);
+  transform: translate(4px, 4px);
 }
 
 button:disabled {
   background-color: #ccc;
   cursor: not-allowed;
-}
-
-button:disabled:hover {
-  background-color: #ccc;
+  box-shadow: none;
+  transform: none;
 }
 
 button[type="submit"] {
-    background-color: #28a745;
+  background-color: var(--success-color);
+  color: white;
 }
-button[type="submit"]:hover {
-    background-color: #218838;
+.back-btn {
+  background-color: var(--font-color-sub);
+  color: white;
 }
 
 .error-text {
-  color: #e74c3c;
+  color: var(--danger-color);
   font-size: 0.8rem;
-  margin-top: 5px;
+  margin: 0;
+  padding-left: 5px;
 }
 
 .password-strength-meter {
@@ -225,7 +294,6 @@ button[type="submit"]:hover {
   border-radius: 5px;
   overflow: hidden;
   position: relative;
-  margin-top: 5px;
 }
 
 .strength-bar {
@@ -240,10 +308,8 @@ button[type="submit"]:hover {
   transform: translate(-50%, -50%);
   margin: 0;
   font-size: 0.8rem;
-  color: #333;
   font-weight: bold;
   mix-blend-mode: difference;
   color: white;
 }
-
 </style> 

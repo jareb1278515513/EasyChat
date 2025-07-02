@@ -1,45 +1,49 @@
 <template>
-  <div class="admin-container">
-    <h2>管理员面板</h2>
-    <div class="controls">
-      <button @click="fetchUsers" class="refresh-btn">刷新用户列表</button>
-      <button @click="goBack" class="back-btn">返回聊天</button>
+  <div class="page-container">
+    <div class="admin-container">
+      <h2>管理员面板</h2>
+      <div class="controls">
+        <button @click="fetchUsers" class="refresh-btn">刷新用户列表</button>
+        <button @click="goBack" class="back-btn">返回聊天</button>
+      </div>
+      <div class="table-wrapper bordered-and-shadowed">
+        <table class="users-table">
+          <thead>
+            <tr>
+              <th>用户名</th>
+              <th>邮箱</th>
+              <th>在线状态</th>
+              <th>管理员</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="user in users" :key="user.id">
+              <td>{{ user.username }}</td>
+              <td>{{ user.email }}</td>
+              <td>
+                <span :class="['status', user.is_online ? 'online' : 'offline']">
+                  {{ user.is_online ? '在线' : '离线' }}
+                </span>
+              </td>
+              <td>{{ user.is_admin ? '是' : '否' }}</td>
+              <td class="actions">
+                <button @click="disconnectUser(user.username)" 
+                        :disabled="user.username === currentUser"
+                        class="action-btn disconnect-btn">
+                  强制下线
+                </button>
+                <button @click="deleteUser(user.username)" 
+                        :disabled="user.username === currentUser"
+                        class="action-btn delete-btn">
+                  删除用户
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
-    <table class="users-table">
-      <thead>
-        <tr>
-          <th>用户名</th>
-          <th>邮箱</th>
-          <th>在线状态</th>
-          <th>管理员</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="user in users" :key="user.id">
-          <td>{{ user.username }}</td>
-          <td>{{ user.email }}</td>
-          <td>
-            <span :class="['status', user.is_online ? 'online' : 'offline']">
-              {{ user.is_online ? '在线' : '离线' }}
-            </span>
-          </td>
-          <td>{{ user.is_admin ? '是' : '否' }}</td>
-          <td class="actions">
-            <button @click="disconnectUser(user.username)" 
-                    :disabled="user.username === currentUser"
-                    class="action-btn disconnect-btn">
-              强制下线
-            </button>
-            <button @click="deleteUser(user.username)" 
-                    :disabled="user.username === currentUser"
-                    class="action-btn delete-btn">
-              删除用户
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
   </div>
 </template>
 
@@ -94,56 +98,117 @@ export default {
 </script>
 
 <style scoped>
+/* Theme Variables */
 .admin-container {
-  max-width: 900px;
-  margin: 20px auto;
-  padding: 20px;
-  font-family: sans-serif;
+  --input-focus: #2d8cf0;
+  --font-color: #323232;
+  --font-color-sub: #666;
+  --bg-color: beige;
+  --main-color: black;
+  --base-bg: lightblue;
+  --container-bg: #f0f2f5;
+  --danger-color: #e74c3c;
+  --warning-color: #f1c40f;
+  --success-color: #2ecc71;
+}
+
+.bordered-and-shadowed {
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+}
+
+.page-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* Align to top */
+  min-height: 100vh;
+  padding: 40px;
+  background-color: var(--container-bg);
+  box-sizing: border-box;
+}
+
+.admin-container {
+  width: 100%;
+  max-width: 1000px;
+  padding: 25px;
+  background: var(--base-bg);
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-family: 'Helvetica Neue', sans-serif;
+}
+
+h2 {
+  color: var(--font-color);
+  font-weight: 900;
+  font-size: 24px;
+  text-align: center;
+  margin-bottom: 25px;
+  border-bottom: 2px solid var(--main-color);
+  padding-bottom: 15px;
 }
 
 .controls {
-  margin-bottom: 20px;
+  margin-bottom: 25px;
   display: flex;
-  gap: 10px;
+  gap: 15px;
 }
 
-.refresh-btn, .back-btn {
-  padding: 10px 15px;
-  border: none;
+button {
+  height: 45px;
+  padding: 0 20px;
   border-radius: 5px;
-  color: white;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
   cursor: pointer;
+  transition: all 0.2s ease-in-out;
 }
 
-.refresh-btn {
-  background-color: #007bff;
+button:active {
+  box-shadow: 0px 0px var(--main-color);
+  transform: translate(4px, 4px);
 }
 
-.refresh-btn:hover {
-  background-color: #0056b3;
+button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
 }
 
-.back-btn {
-  background-color: #6c757d;
-}
+.refresh-btn { background-color: var(--input-focus); color: white; }
+.back-btn { background-color: var(--font-color-sub); color: white; }
+.disconnect-btn { background-color: var(--warning-color); }
+.delete-btn { background-color: var(--danger-color); color: white; }
+.action-btn { height: auto; padding: 5px 10px; font-size: 14px; }
 
-.back-btn:hover {
-  background-color: #5a6268;
+
+.table-wrapper {
+  padding: 10px;
 }
 
 .users-table {
   width: 100%;
   border-collapse: collapse;
+  background-color: white;
 }
 
 .users-table th, .users-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
+  border: 2px solid var(--main-color);
+  padding: 12px 15px;
   text-align: left;
+  color: var(--font-color);
 }
 
 .users-table th {
-  background-color: #f2f2f2;
+  font-weight: 900;
+  background-color: var(--bg-color);
 }
 
 .status {
@@ -151,39 +216,15 @@ export default {
   border-radius: 12px;
   color: white;
   font-size: 0.8em;
+  font-weight: bold;
+  text-align: center;
 }
 
-.online {
-  background-color: #28a745;
-}
-
-.offline {
-  background-color: #dc3545;
-}
+.online { background-color: var(--success-color); }
+.offline { background-color: var(--font-color-sub); }
 
 .actions {
   display: flex;
-  gap: 5px;
-}
-
-.action-btn {
-  padding: 5px 10px;
-  border: none;
-  border-radius: 4px;
-  color: white;
-  cursor: pointer;
-}
-
-.disconnect-btn {
-  background-color: #ffc107;
-}
-
-.delete-btn {
-  background-color: #dc3545;
-}
-
-.action-btn:disabled {
-  background-color: #ccc;
-  cursor: not-allowed;
+  gap: 10px;
 }
 </style> 
