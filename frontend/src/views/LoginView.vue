@@ -1,20 +1,16 @@
 <template>
-  <div class="login-container">
-    <div class="login-box">
-      <h1>EasyChat</h1>
-      <form @submit.prevent="handleLogin">
-        <div class="input-group">
-          <input type="text" v-model="username" placeholder="Username" required>
-        </div>
-        <div class="input-group">
-          <input type="password" v-model="password" placeholder="Password" required>
-        </div>
-        <button type="submit" class="login-button">Login</button>
-      </form>
+  <div class="container">
+    <form class="form" @submit.prevent="handleLogin">
+      <div class="title">欢迎使用EasyChat!
+        <span>登录以继续</span>
+      </div>
+      <input class="input" type="text" v-model="username" placeholder="用户名" required>
+      <input class="input" type="password" v-model="password" placeholder="密码" required>
+      <button class="button-confirm">登录 →</button>
       <p class="register-link">
-        Don't have an account? <router-link to="/register">Register</router-link>
+        还没有账户？ <router-link to="/register">立即注册</router-link>
       </p>
-    </div>
+    </form>
   </div>
 </template>
 
@@ -42,34 +38,34 @@ export default {
           port: port,
         });
         
-        console.log('Login successful:', response.data);
+        console.log('登录成功:', response.data);
         const token = response.data.token;
         localStorage.setItem('token', token);
         localStorage.setItem('username', this.username);
 
         // Generate and upload public key
         try {
-          console.log('Generating key pair...');
+          console.log('正在生成密钥对...');
           const keyPair = await generateRsaKeyPair();
           const publicKey = await exportKeyToPem('spki', keyPair.publicKey);
           const privateKey = await exportKeyToPem('pkcs8', keyPair.privateKey);
 
           localStorage.setItem('privateKey', privateKey);
           await api.uploadPublicKey(publicKey);
-          console.log('Public key uploaded successfully.');
+          console.log('公钥上传成功。');
         } catch (error) {
-          console.error('Key generation or upload failed:', error);
-          alert('Could not set up encryption keys. Please try again.');
+          console.error('密钥生成或上传失败:', error);
+          alert('无法设置加密密钥，请重试。');
           return; // Stop if key setup fails
         }
 
         // Initialize PeerJS connection
         try {
-          console.log('Initializing PeerJS with username:', this.username);
+          console.log('正在使用用户名初始化 PeerJS:', this.username);
           initializePeer(this.username);
         } catch (error) {
-          console.error('PeerJS initialization failed:', error);
-          alert('Could not set up P2P connection. Please try again.');
+          console.error('PeerJS 初始化失败:', error);
+          alert('无法建立P2P连接，请重试。');
           return;
         }
 
@@ -83,7 +79,7 @@ export default {
         
         // Handle successful connection
         socket.once('connect', () => {
-          console.log('Socket connected successfully, sending authentication.');
+          console.log('Socket 连接成功，正在发送认证信息。');
           // The backend expects an 'authenticate' event after connection
           socket.emit('authenticate', {
             token,
@@ -97,8 +93,8 @@ export default {
 
         this.$router.push('/chat');
       } catch (error) {
-        console.error('Login failed:', error.response ? error.response.data : error.message);
-        alert('Login failed: ' + (error.response ? error.response.data.message : 'Network Error'));
+        console.error('登录失败:', error.response ? error.response.data : error.message);
+        alert('登录失败: ' + (error.response ? error.response.data.message : '网络错误'));
       }
     }
   }
@@ -106,54 +102,101 @@ export default {
 </script>
 
 <style scoped>
-.login-container {
+.container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
   background-color: #f0f2f5;
 }
-.login-box {
-  background: #fff;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+.form {
+  --input-focus: #2d8cf0;
+  --font-color: #323232;
+  --font-color-sub: #666;
+  --bg-color: beige;
+  --main-color: black;
+  padding: 25px;
+  background: lightblue;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centered form elements */
+  justify-content: center;
+  gap: 20px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
   width: 100%;
-  max-width: 400px;
+  max-width: 400px; /* Increased width */
+}
+
+.title {
+  color: var(--font-color);
+  font-weight: 900;
+  font-size: 24px; /* Larger title */
+  margin-bottom: 25px;
   text-align: center;
 }
-h1 {
-  margin-bottom: 24px;
-  color: #333;
+
+.title span {
+  color: var(--font-color-sub);
+  font-weight: 600;
+  font-size: 17px;
 }
-.input-group {
-  margin-bottom: 20px;
-}
-input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+
+.input {
+  width: 100%; /* Full width */
+  height: 45px; /* Taller input */
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
+  padding: 5px 15px;
+  outline: none;
   box-sizing: border-box;
 }
-.login-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #007aff;
-  color: white;
-  border: none;
-  border-radius: 4px;
+
+.input::placeholder {
+  color: var(--font-color-sub);
+  opacity: 0.8;
+}
+
+.input:focus {
+  border: 2px solid var(--input-focus);
+}
+
+.button-confirm {
+  margin: 30px auto 0 auto;
+  width: 150px;
+  height: 45px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--font-color);
   cursor: pointer;
-  font-size: 16px;
+  transition: all 0.2s ease-in-out;
 }
-.login-button:hover {
-  background-color: #0056b3;
+
+.button-confirm:active {
+  box-shadow: 0px 0px var(--main-color);
+  transform: translate(4px, 4px);
 }
+
 .register-link {
   margin-top: 20px;
+  color: var(--font-color-sub);
+  font-size: 0.9rem;
 }
+
 .register-link a {
-  color: #007aff;
+  color: #2d8cf0;
   text-decoration: none;
+  font-weight: 600;
 }
 </style> 

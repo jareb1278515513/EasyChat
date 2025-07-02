@@ -1,23 +1,17 @@
 <template>
-  <div class="register-container">
-    <div class="register-box">
-      <h1>Create Account</h1>
-      <form @submit.prevent="handleRegister">
-        <div class="input-group">
-          <input type="text" v-model="username" placeholder="Username" required>
-        </div>
-        <div class="input-group">
-          <input type="email" v-model="email" placeholder="Email" required>
-        </div>
-        <div class="input-group">
-          <input type="password" v-model="password" placeholder="Password" required>
-        </div>
-        <button type="submit" class="register-button">Register</button>
-      </form>
-      <p class="login-link">
-        Already have an account? <router-link to="/login">Login</router-link>
+  <div class="container">
+    <form class="form" @submit.prevent="handleRegister">
+      <div class="title">创建您的账户
+        <span>开启安全通讯之旅</span>
+      </div>
+      <input class="input" type="text" v-model="username" placeholder="用户名" required>
+      <input class="input" type="email" v-model="email" placeholder="邮箱" required>
+      <input class="input" type="password" v-model="password" placeholder="密码" required>
+      <button class="button-confirm">注册 →</button>
+      <p class="register-link">
+        已有账户？ <router-link to="/login">立即登录</router-link>
       </p>
-    </div>
+    </form>
   </div>
 </template>
 
@@ -41,12 +35,12 @@ export default {
           email: this.email,
           password: this.password
         });
-        console.log('Registration successful:', response.data);
-        alert('Registration successful! Please login.');
+        console.log('注册成功:', response.data);
+        alert('注册成功！请登录。');
         this.$router.push('/login');
       } catch (error) {
-        console.error('Registration failed:', error.response ? error.response.data : error.message);
-        alert('Registration failed: ' + (error.response ? error.response.data.message : error.message));
+        console.error('注册失败:', error.response ? error.response.data : error.message);
+        alert('注册失败: ' + (error.response ? error.response.data.message : '网络错误'));
       }
     }
   }
@@ -54,54 +48,102 @@ export default {
 </script>
 
 <style scoped>
-.register-container {
+/* Copied from LoginView.vue to ensure consistent styling */
+.container {
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100vh;
   background-color: #f0f2f5;
 }
-.register-box {
-  background: #fff;
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+
+.form {
+  --input-focus: #2d8cf0;
+  --font-color: #323232;
+  --font-color-sub: #666;
+  --bg-color: beige;
+  --main-color: black;
+  padding: 25px;
+  background: lightblue;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* Centered form elements */
+  justify-content: center;
+  gap: 20px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
   width: 100%;
-  max-width: 400px;
+  max-width: 400px; /* Increased width */
+}
+
+.title {
+  color: var(--font-color);
+  font-weight: 900;
+  font-size: 24px; /* Larger title */
+  margin-bottom: 25px;
   text-align: center;
 }
-h1 {
-  margin-bottom: 24px;
-  color: #333;
+
+.title span {
+  color: var(--font-color-sub);
+  font-weight: 600;
+  font-size: 17px;
 }
-.input-group {
-  margin-bottom: 20px;
-}
-input {
-  width: 100%;
-  padding: 12px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+
+.input {
+  width: 100%; /* Full width */
+  height: 45px; /* Taller input */
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--font-color);
+  padding: 5px 15px;
+  outline: none;
   box-sizing: border-box;
 }
-.register-button {
-  width: 100%;
-  padding: 12px;
-  background-color: #007aff;
-  color: white;
-  border: none;
-  border-radius: 4px;
+
+.input::placeholder {
+  color: var(--font-color-sub);
+  opacity: 0.8;
+}
+
+.input:focus {
+  border: 2px solid var(--input-focus);
+}
+
+.button-confirm {
+  margin: 30px auto 0 auto;
+  width: 150px;
+  height: 45px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  background-color: var(--bg-color);
+  box-shadow: 4px 4px var(--main-color);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--font-color);
   cursor: pointer;
-  font-size: 16px;
+  transition: all 0.2s ease-in-out;
 }
-.register-button:hover {
-  background-color: #0056b3;
+
+.button-confirm:active {
+  box-shadow: 0px 0px var(--main-color);
+  transform: translate(4px, 4px);
 }
-.login-link {
+
+.register-link {
   margin-top: 20px;
+  color: var(--font-color-sub);
+  font-size: 0.9rem;
 }
-.login-link a {
-  color: #007aff;
+
+.register-link a {
+  color: #2d8cf0;
   text-decoration: none;
+  font-weight: 600;
 }
 </style> 

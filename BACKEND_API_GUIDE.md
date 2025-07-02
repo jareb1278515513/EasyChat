@@ -1,393 +1,404 @@
-# EasyChat 后端 API 使用指南
+# 后端 API 指南 (V2)
 
-本文档为 EasyChat 的后端服务提供详细的 API 和 WebSocket 事件说明，旨在为前端开发提供支持。
+本文档详细介绍了 EasyChat 后端提供的 RESTful API 和 WebSocket 事件，旨在为前端开发提供清晰、准确的接口规范。
 
----
+**基础 URL**: 所有 API 的基础路径为 `/api`。
 
-## 1. 启动后端服务
-
-在进行任何测试或开发之前，请确保后端服务正在运行。
-
-1.  打开一个新的终端。
-2.  导航到项目的 `backend` 目录。
-3.  激活 Python 虚拟环境：
-    ```bash
-    # Windows
-    .\venv\Scripts\activate
-    ```
-4.  运行 Flask 应用：
-    ```bash
-    python run.py
-    ```
-    服务器默认在 `http://127.0.0.1:5000` 上运行。
+**认证方式**: 大多数需要用户登录的 API 均采用 JWT (JSON Web Token) 进行认证。客户端在登录成功后会获得一个 Token，后续请求需在 HTTP Header 中加入 `Authorization` 字段，格式为 `Bearer <Your_JWT_Token>`。
 
 ---
 
-## 2. 认证机制
+## **第一部分：RESTful API**
 
-本应用的 API 使用 **JWT (JSON Web Token)**进行认证。
+### **1. 基础接口**
 
--   成功登录后，客户端会收到一个 `token`。
--   对于所有需要认证的 API 请求，客户端必须在 HTTP 请求头中包含 `Authorization` 字段。
--   格式为：`Authorization: Bearer <your_jwt_token>`
+#### **1.1. 服务器状态检查**
+
+*   **功能**: 检查服务器是否正在运行。
+*   **Endpoint**: `/ping`
+*   **方法**: `GET`
+*   **认证**: 无需
+*   **请求**: 无
+*   **成功响应 (200 OK)**:
+    *   **内容**: `Pong!` (纯文本)
 
 ---
 
-## 3. HTTP API 接口
+### **2. 用户与认证 (User & Auth)**
 
-API 的基地址为 `http://localhost:5000/api`。
+#### **2.1. 用户注册**
 
-### 3.1 用户与认证
-
-#### 3.1.1 注册新用户
--   **URL**: `/register`
--   **Method**: `POST`
--   **Description**: 创建一个新用户账户。
--   **Request Body** (`application/json`):
+*   **功能**: 创建一个新用户账户。
+*   **Endpoint**: `/register`
+*   **方法**: `POST`
+*   **认证**: 无需
+*   **请求体 (JSON)**:
     ```json
     {
-        "username": "newuser",
-        "email": "newuser@example.com",
-        "password": "strongpassword123"
+      "username": "new_user",
+      "email": "user@example.com",
+      "password": "your_secure_password"
     }
     ```
--   **Success Response** (`201 CREATED`):
-    ```json
-    { "message": "User registered successfully" }
-    ```
--   **Error Responses** (`400 BAD REQUEST`):
-    ```json
-    { "error": "Missing username, email, or password" }
-    { "error": "Username already exists" }
-    { "error": "Email already registered" }
-    ```
-
-#### 3.1.2 用户登录
--   **URL**: `/login`
--   **Method**: `POST`
--   **Description**: 用户登录以获取认证令牌。服务器会根据请求来源更新用户的IP地址。
--   **Request Body** (`application/json`):
+*   **成功响应 (201 Created)**:
     ```json
     {
-        "username": "testuser",
-        "password": "password123"
+      "message": "User registered successfully"
     }
     ```
--   **Success Response** (`200 OK`):
+*   **错误响应**:
+    *   `400 Bad Request`: 请求体格式错误、缺少字段，或用户名/邮箱已存在。
+
+#### **2.2. 用户登录**
+
+*   **功能**: 认证用户凭证，成功后返回 JWT。
+*   **Endpoint**: `/login`
+*   **方法**: `POST`
+*   **认证**: 无需
+*   **请求体 (JSON)**:
     ```json
     {
-        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2Vy..."
+      "username": "existing_user",
+      "password": "your_password",
+      "port": 5000 
     }
     ```
--   **Error Response** (`401 UNAUTHORIZED`):
-    ```json
-    { "error": "Invalid username or password" }
-    ```
-
-#### 3.1.3 上传/更新公钥
--   **URL**: `/keys`
--   **Method**: `POST`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 允许已认证用户上传自己的公钥，用于端到端加密。
--   **Request Body** (`application/json`):
+    *   `port`: 客户端用于 P2P 通信的监听端口。
+*   **成功响应 (200 OK)**:
     ```json
     {
-        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIB..."
+      "token": "a.very.long.jwt.token.string"
     }
     ```
--   **Success Response** (`200 OK`):
-    ```json
-    { "message": "Public key updated successfully" }
-    ```
+*   **错误响应**:
+    *   `400 Bad Request`: 请求体格式错误或缺少字段。
+    *   `401 Unauthorized`: 用户名或密码无效。
 
-#### 3.1.4 获取指定用户的公钥
--   **URL**: `/users/<username>/public_key`
--   **Method**: `GET`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 获取指定用户的公钥。
--   **Success Response** (`200 OK`):
+#### **2.3. 上传公钥**
+
+*   **功能**: 上传用户的 RSA 公钥，用于后续的端到端加密密钥协商。
+*   **Endpoint**: `/keys`
+*   **方法**: `POST`
+*   **认证**: **需要** (`token_required`)
+*   **请求体 (JSON)**:
     ```json
     {
-        "user_id": 2,
+      "public_key": "-----BEGIN PUBLIC KEY-----\nMIICIj...\n-----END PUBLIC KEY-----"
+    }
+    ```
+*   **成功响应 (200 OK)**:
+    ```json
+    {
+      "message": "Public key updated successfully"
+    }
+    ```
+*   **错误响应**:
+    *   `400 Bad Request`: 请求体中缺少 `public_key`。
+
+#### **2.4. 获取用户公钥**
+
+*   **功能**: 获取指定用户的公钥。
+*   **Endpoint**: `/users/<username>/public_key`
+*   **方法**: `GET`
+*   **认证**: **需要** (`token_required`)
+*   **路径参数**:
+    *   `username`: 目标用户的用户名。
+*   **成功响应 (200 OK)**:
+    ```json
+    {
+      "user_id": 2,
+      "username": "friend_user",
+      "public_key": "-----BEGIN PUBLIC KEY-----\nMIICIj...\n-----END PUBLIC KEY-----"
+    }
+    ```
+*   **错误响应**:
+    *   `404 Not Found`: 用户不存在，或该用户尚未上传公钥。
+
+---
+
+### **3. 好友管理 (Friends)**
+
+所有好友管理相关的 API 均需要认证。
+
+#### **3.1. 获取好友列表**
+
+*   **功能**: 获取当前登录用户的所有好友。
+*   **Endpoint**: `/friends`
+*   **方法**: `GET`
+*   **认证**: **需要** (`token_required`)
+*   **成功响应 (200 OK)**:
+    ```json
+    [
+      {
+        "id": 2,
+        "username": "alice",
+        "is_online": true,
+        "ip_address": "192.168.1.10",
+        "port": 5000
+      },
+      {
+        "id": 3,
         "username": "bob",
-        "public_key": "-----BEGIN PUBLIC KEY-----\nMIIB..."
-    }
-    ```
--   **Error Response** (`404 NOT FOUND`):
-    ```json
-    { "error": "User has not uploaded a public key" }
-    ```
-
-### 3.2 好友管理
-
-#### 3.2.1 获取好友列表
--   **URL**: `/friends`
--   **Method**: `GET`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 获取当前用户的所有好友及其在线状态。
--   **Success Response** (`200 OK`):
-    ```json
-    [
-        {
-            "id": 2,
-            "username": "friend1",
-            "is_online": true,
-            "ip_address": "192.168.1.100",
-            "port": 8888
-        }
+        "is_online": false,
+        "ip_address": null,
+        "port": null
+      }
     ]
     ```
 
-#### 3.2.2 发送好友请求
--   **URL**: `/friend-requests`
--   **Method**: `POST`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 向另一位用户发送好友请求。成功后会通过 WebSocket 向接收方发送 `new_friend_request` 事件。
--   **Request Body** (`application/json`):
-    ```json
-    { "username": "receiver_username" }
-    ```
--   **Success Response** (`201 CREATED`):
-    ```json
-    { "message": "Friend request sent successfully" }
-    ```
+#### **3.2. 发送好友请求**
 
-#### 3.2.3 获取收到的好友请求
--   **URL**: `/friend-requests`
--   **Method**: `GET`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 获取所有发送给当前用户的、状态为"待处理"的好友请求。
--   **Success Response** (`200 OK`):
-    ```json
-    [
-        {
-            "id": 1,
-            "requester_id": 3,
-            "requester_username": "some_user",
-            "timestamp": "2023-10-27T10:00:00"
-        }
-    ]
-    ```
-
-#### 3.2.4 响应好友请求
--   **URL**: `/friend-requests/<request_id>`
--   **Method**: `PUT`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 接受或拒绝一个好友请求。
--   **Request Body** (`application/json`):
-    ```json
-    { "action": "accept" }
-    ```
-    > `action` 的值可以是 `accept` 或 `reject`.
--   **Success Response** (`200 OK`):
-    ```json
-    { "message": "Friend request accepted successfully." }
-    ```
-
-#### 3.2.5 删除好友
--   **URL**: `/friends/<friend_id>`
--   **Method**: `DELETE`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 解除与一位用户的好友关系。
--   **Success Response** (`200 OK`):
-    ```json
-    { "message": "Friend removed successfully" }
-    ```
-
-### 3.3 在线状态
-
-#### 3.3.1 获取好友在线信息
--   **URL**: `/users/<username>/info`
--   **Method**: `GET`
--   **Authorization**: `Bearer Token` **必需**.
--   **Description**: 获取指定好友的在线状态、IP地址和端口号。出于隐私考虑，此信息仅对好友开放。
--   **Success Response** (`200 OK`):
+*   **功能**: 向另一个用户发送好友请求。
+*   **Endpoint**: `/friend-requests`
+*   **方法**: `POST`
+*   **认证**: **需要** (`token_required`)
+*   **请求体 (JSON)**:
     ```json
     {
-        "username": "friend_username",
+      "username": "user_to_add"
+    }
+    ```
+*   **成功响应 (201 Created)**:
+    *   同时会向接收方（`user_to_add`）通过 WebSocket 发送一个 `new_friend_request` 事件。
+    ```json
+    {
+      "message": "Friend request sent successfully"
+    }
+    ```
+*   **错误响应**:
+    *   `400 Bad Request`: 不能添加自己、已是好友、或已有待处理的请求。
+    *   `404 Not Found`: 目标用户不存在。
+
+#### **3.3. 获取收到的好友请求**
+
+*   **功能**: 获取所有发送给当前用户的、状态为"待处理"的好友请求。
+*   **Endpoint**: `/friend-requests`
+*   **方法**: `GET`
+*   **认证**: **需要** (`token_required`)
+*   **成功响应 (200 OK)**:
+    ```json
+    [
+      {
+        "id": 1,
+        "requester_id": 4,
+        "requester_username": "charlie",
+        "timestamp": "2023-10-27T10:00:00"
+      }
+    ]
+    ```
+
+#### **3.4. 响应好友请求**
+
+*   **功能**: 接受或拒绝一个好友请求。
+*   **Endpoint**: `/friend-requests/<request_id>`
+*   **方法**: `PUT`
+*   **认证**: **需要** (`token_required`)
+*   **路径参数**:
+    *   `request_id`: 目标好友请求的 ID。
+*   **请求体 (JSON)**:
+    ```json
+    {
+      "action": "accept" 
+    }
+    ```
+    *   `action`: 必须是 `"accept"` 或 `"reject"`。
+*   **成功响应 (200 OK)**:
+    ```json
+    {
+      "message": "Friend request accepted successfully."
+    }
+    ```
+*   **错误响应**:
+    *   `400 Bad Request`: `action` 无效，或请求已被处理。
+    *   `403 Forbidden`: 无权响应此请求。
+    *   `404 Not Found`: 请求 ID 不存在。
+
+#### **3.5. 删除好友**
+
+*   **功能**: 解除与某个用户的好友关系（双向）。
+*   **Endpoint**: `/friends/<friend_id>`
+*   **方法**: `DELETE`
+*   **认证**: **需要** (`token_required`)
+*   **路径参数**:
+    *   `friend_id`: 目标好友的用户 ID。
+*   **成功响应 (200 OK)**:
+    ```json
+    {
+      "message": "Friend removed successfully"
+    }
+    ```
+*   **错误响应**:
+    *   `400 Bad Request`: 对方不是你的好友。
+    *   `404 Not Found`: 目标用户 ID 不存在。
+
+---
+
+### **4. 用户信息查询 (Online Status)**
+
+#### **4.1. 获取指定用户信息**
+
+*   **功能**: 获取指定用户的在线状态和连接信息。
+*   **Endpoint**: `/users/<username>/info`
+*   **方法**: `GET`
+*   **认证**: **需要** (`token_required`)
+*   **访问限制**: 只能查询自己或好友的信息。
+*   **成功响应 (200 OK)**:
+    *   如果用户在线且是好友:
+        ```json
+        {
+          "username": "alice",
+          "is_online": true,
+          "ip_address": "192.168.1.10",
+          "port": 5000
+        }
+        ```
+    *   如果用户离线:
+        ```json
+        {
+          "username": "alice",
+          "is_online": false
+        }
+        ```
+*   **错误响应**:
+    *   `403 Forbidden`: 目标用户不是你的好友。
+    *   `404 Not Found`: 用户不存在。
+
+---
+
+### **5. 管理员接口 (Admin)**
+
+所有管理员接口都需要**管理员权限**认证。
+
+#### **5.1. 获取所有用户列表**
+
+*   **功能**: 获取系统内所有用户的列表和状态。
+*   **Endpoint**: `/admin/users`
+*   **方法**: `GET`
+*   **认证**: **需要** (`admin_required`)
+*   **成功响应 (200 OK)**:
+    ```json
+    [
+      {
+        "id": 1,
+        "username": "admin",
+        "email": "admin@app.com",
         "is_online": true,
         "ip_address": "127.0.0.1",
-        "port": 8888
+        "is_admin": true
+      },
+      {
+        "id": 2,
+        "username": "alice",
+        "email": "alice@app.com",
+        "is_online": false,
+        "ip_address": null,
+        "is_admin": false
+      }
+    ]
+    ```
+
+#### **5.2. 强制用户下线**
+
+*   **功能**: 强制断开指定用户的 WebSocket 连接。
+*   **Endpoint**: `/admin/users/<username>/disconnect`
+*   **方法**: `POST`
+*   **认证**: **需要** (`admin_required`)
+*   **路径参数**:
+    *   `username`: 目标用户的用户名。
+*   **成功响应 (200 OK)**:
+    ```json
+    {
+      "message": "Disconnect signal sent to alice."
     }
     ```
--   **Error Response** (`403 FORBIDDEN`):
-    ```json
-    { "error": "Access denied: you can only view info for your friends." }
-    ```
+*   **错误响应**:
+    *   `404 Not Found`: 目标用户不存在。
+    *   `500 Internal Server Error`: 数据库状态与 Socket 会话不一致（该接口会自动修复数据库状态）。
 
 ---
 
-## 4. WebSocket 实时事件
+## **第二部分：WebSocket 事件**
 
-WebSocket 服务器地址为 `http://localhost:5000`。
+客户端通过 Socket.IO 与服务器进行实时通信。
 
-### 4.1 认证连接
--   **Event**: `authenticate`
--   **Direction**: `Client -> Server`
--   **Description**: 在 WebSocket 连接建立后，客户端必须立即发送此事件进行认证，以开始接收实时更新。
--   **Payload**:
-    ```javascript
-    {
-        "token": "your_jwt_token",
-        "ip_address": "192.168.1.101", // 可选, 用于P2P
-        "port": 9999 // 可选, 用于P2P
-    }
-    ```
--   **Server Action**:
-    -   验证 `token`, 将用户 `is_online` 状态设置为 `True`, 并记录其 IP 和端口。
-    -   向该用户的所有在线好友广播 `friend_status_update` 事件。
+### **客户端 -> 服务器 (Client Emits)**
 
-### 4.2 WebRTC 信令转发
--   **Event**: `webrtc_signal`
--   **Direction**: `Client -> Server -> Client`
--   **Description**: 用于在两个客户端之间透明地转发 WebRTC 信令（如 offer, answer, ICE candidates），以建立 P2P 连接。
--   **Payload (Client -> Server)**:
-    ```javascript
-    {
-        "to": "recipient_username",
-        "signal": { ... } // 具体的 WebRTC 信令对象
-    }
-    ```
--   **Payload (Server -> Client)**:
-     ```javascript
-    {
-        "from": "sender_username",
-        "signal": { ... } // 具体的 WebRTC 信令对象
-    }
-    ```
+#### `authenticate`
 
-### 4.3 好友状态更新
--   **Event**: `friend_status_update`
--   **Direction**: `Server -> Client`
--   **Description**: 当您的好友上线或下线时，服务器会发送此事件。
--   **Payload**:
-    ```javascript
-    // 上线
-    { "username": "friend_username", "is_online": true, "ip_address": "127.0.0.1", "port": 8888 }
-    // 下线
-    { "username": "friend_username", "is_online": false }
-    ```
-
-### 4.4 收到新的好友请求
--   **Event**: `new_friend_request`
--   **Direction**: `Server -> Client`
--   **Description**: 当有其他用户向您发送好友请求时，服务器会发送此事件。
--   **Payload**:
-    ```javascript
-    {
-        "id": 1,
-        "requester_id": 3,
-        "requester_username": "some_user",
-        "timestamp": "2023-10-27T10:00:00Z"
-    }
-    ```
-
-### 4.5 断开连接
--   **Event**: `disconnect`
--   **Direction**: `Implicit` (由客户端关闭连接触发)
--   **Description**: 当客户端断开 WebSocket 连接时自动触发。
--   **Server Action**:
-    -   将用户 `is_online` 状态设置为 `False`, 并清空 IP 和端口。
-    -   向该用户的好友广播 `friend_status_update` 事件。
-
-### 4.6 (已弃用) 私聊消息
--   **Event**: `private_message`
--   **Description**: 此事件已弃用。新的消息系统应通过 WebRTC 实现端到端(P2P)的安全通信。
-
----
-## 5. 管理员专用接口
-
-### 5.1 获取所有用户信息
--   **URL**: `/admin/users`
--   **Method**: `GET`
--   **Authorization**: `Bearer Token` **必需** (且用户必须是管理员).
--   **Description**: 获取系统中所有用户的列表及其状态。
-
-### 5.2 强制用户下线
--   **URL**: `/admin/users/<username>/disconnect`
--   **Method**: `POST`
--   **Authorization**: `Bearer Token` **必需** (且用户必须是管理员).
--   **Description**: 强制指定用户断开 WebSocket 连接。
-
----
-## 6. 使用 Postman 进行功能测试
-
-本节将指导您如何使用 Postman 测试一个完整的业务场景：**用户 `user2` 获取其好友 `user1` 的在线 IP 和端口**。
-
-### 前提
-确保后端服务正在运行。
-
-### 步骤 1: 注册两个测试用户
-如果测试用户不存在，请先注册他们。
-- **请求**: `POST http://localhost:5000/api/register`
-- **Body**:
-    ```json
-    { "username": "user1", "email": "user1@example.com", "password": "pw1" }
-    ```
-- **请求**: `POST http://localhost:5000/api/register`
-- **Body**:
-    ```json
-    { "username": "user2", "email": "user2@example.com", "password": "pw2" }
-    ```
-
-### 步骤 2: 登录并保存 Token
-为两个用户登录，并将其返回的 `token` 保存为 Postman 的环境变量，方便后续使用。
-1.  **user1 登录**: 发送 `POST http://localhost:5000/api/login` 请求，Body 为 `{"username": "user1", "password": "pw1"}`。在 Postman 的 `Tests` 标签页中添加以下脚本，将 token 保存到名为 `token1` 的变量中：
-    ```javascript
-    pm.environment.set("token1", pm.response.json().token);
-    ```
-2.  **user2 登录**: 发送 `POST http://localhost:5000/api/login` 请求，Body 为 `{"username": "user2", "password": "pw2"}`。同样，在 `Tests` 标签页中添加脚本，保存为 `token2`：
-    ```javascript
-    pm.environment.set("token2", pm.response.json().token);
-    ```
-
-### 步骤 3: 模拟 user1 上线
-此步骤需要使用 Postman 的 WebSocket 功能来模拟客户端连接和认证。
-1.  在 Postman 中，新建一个 WebSocket 请求。
-2.  **输入服务器 URL**: `ws://localhost:5000/socket.io/?EIO=4&transport=websocket`
-3.  点击 **Connect**。连接成功后，您会从服务器收到一条类似 `0{"sid":"..."...}` 的消息。
-4.  **发送认证事件**: 在下方的消息输入框中，发送以下内容以认证 `user1` 并上报其IP和端口。Postman 会自动将 `{{token1}}` 替换为您保存的环境变量。
-    ```
-    42["authenticate",{"token":"{{token1}}","ip_address":"192.168.1.101","port":9999}]
-    ```
-    > **注意**: `42` 是 Socket.IO 协议的一部分，用于表示发送一个事件。请确保完整复制。
-5.  此时，服务器已将 `user1` 标记为在线，并记录了其 IP 和端口。您可以保持此 WebSocket 连接，或直接断开。
-
-### 步骤 4: 建立好友关系
-`user2` 还不能直接获取 `user1` 的信息，他们需要先成为好友。
-1.  **user1 发送好友请求给 user2**:
-    -   **Method**: `POST`
-    -   **URL**: `http://localhost:5000/api/friend-requests`
-    -   **Headers**: `Authorization: Bearer {{token1}}`
-    -   **Body** (raw, JSON): `{ "username": "user2" }`
-2.  **user2 查询收到的好友请求**:
-    -   **Method**: `GET`
-    -   **URL**: `http://localhost:5000/api/friend-requests`
-    -   **Headers**: `Authorization: Bearer {{token2}}`
-    -   从返回的 JSON 数组中找到来自 `user1` 的请求，并将其 `id` 复制下来。为了方便，可以在 `Tests` 标签页中添加以下脚本，自动将其保存为 `request_id`：
-      ```javascript
-      // 假设只收到了一个请求
-      pm.environment.set("request_id", pm.response.json()[0].id);
-      ```
-3.  **user2 接受好友请求**:
-    -   **Method**: `PUT`
-    -   **URL**: `http://localhost:5000/api/friend-requests/{{request_id}}`
-    -   **Headers**: `Authorization: Bearer {{token2}}`
-    -   **Body** (raw, JSON): `{ "action": "accept" }`
-
-### 步骤 5: 获取好友在线信息
-现在 `user1` 和 `user2` 已是好友，`user2` 可以成功获取 `user1` 的信息。
-- **请求**:
-    -   **Method**: `GET`
-    -   **URL**: `http://localhost:5000/api/users/user1/info`
-    -   **Headers**: `Authorization: Bearer {{token2}}`
-- **预期成功响应** (`200 OK`):
+*   **功能**: 在 WebSocket 连接建立后，客户端必须立即发送此事件进行身份验证。
+*   **数据**:
     ```json
     {
-        "username": "user1",
-        "is_online": true,
-        "ip_address": "192.168.1.101",
-        "port": 9999
+      "token": "your.jwt.token",
+      "ip_address": "192.168.1.10",
+      "port": 5000
     }
     ```
-通过以上步骤，您就完成了一个完整的跨 HTTP 和 WebSocket 的功能测试。 
+    *   `token`: 从登录接口获取的 JWT。
+    *   `ip_address`, `port`: 客户端用于 P2P 通信的 IP 和端口。
+
+#### `webrtc_signal`
+
+*   **功能**: 用于在两个客户端之间中继（转发）WebRTC 信令（如 `offer`, `answer`, `ICE candidates`）。
+*   **数据**:
+    ```json
+    {
+      "to": "recipient_username",
+      "signal": { ... } 
+    }
+    ```
+    *   `to`: 接收信令的用户名。
+    *   `signal`: 具体的 WebRTC 信令对象。
+
+### **服务器 -> 客户端 (Server Emits)**
+
+#### `new_friend_request`
+
+*   **功能**: 当有新的好友请求时，服务器向接收方发送此事件。
+*   **触发**: 其他用户调用 `POST /friend-requests`。
+*   **数据**:
+    ```json
+    {
+      "id": 1,
+      "requester_id": 4,
+      "requester_username": "charlie",
+      "timestamp": "2023-10-27T10:00:00Z"
+    }
+    ```
+
+#### `friend_status_update`
+
+*   **功能**: 当好友上线或下线时，服务器向其所有在线好友广播此事件。
+*   **触发**: 用户 `authenticate` 成功或 `disconnect`。
+*   **数据 (上线时)**:
+    ```json
+    {
+      "username": "alice",
+      "is_online": true,
+      "ip_address": "192.168.1.10",
+      "port": 5000
+    }
+    ```
+*   **数据 (下线时)**:
+    ```json
+    {
+      "username": "alice",
+      "is_online": false
+    }
+    ```
+
+#### `webrtc_signal`
+
+*   **功能**: 将从一个客户端收到的 WebRTC 信令转发给目标客户端。
+*   **触发**: 其他客户端发送 `webrtc_signal` 事件。
+*   **数据**:
+    ```json
+    {
+      "from": "sender_username",
+      "signal": { ... }
+    }
+    ```
+    *   `from`: 发送信令的用户名。
+    *   `signal`: 具体的 WebRTC 信令对象。
+
+</rewritten_file> 
