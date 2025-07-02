@@ -53,5 +53,21 @@ export default {
       }
     });
   },
+  updateEmail(email) {
+    return apiClient.put('/user/email', { email });
+  },
+  updatePassword(passwords) {
+    return apiClient.put('/user/password', passwords);
+  },
+  // Admin functions
+  adminGetAllUsers() {
+    return apiClient.get('/admin/users');
+  },
+  adminDisconnectUser(username) {
+    return apiClient.post(`/admin/users/${username}/disconnect`);
+  },
+  adminDeleteUser(username) {
+    return apiClient.delete(`/admin/users/${username}`);
+  },
   // We can add other API calls here later
 }; 

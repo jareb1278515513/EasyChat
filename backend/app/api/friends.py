@@ -138,12 +138,14 @@ def respond_to_friend_request(request_id):
         friend_request.status = 'accepted'
         requester = User.query.get(friend_request.requester_id)
         current_user.add_friend(requester)
+        db.session.commit()
+        message = 'Friend request accepted successfully.'
     else: # action == 'reject'
-        friend_request.status = 'rejected'
+        db.session.delete(friend_request)
+        db.session.commit()
+        message = 'Friend request rejected successfully.'
     
-    db.session.commit()
-    
-    return jsonify({'message': f'Friend request {action}ed successfully.'})
+    return jsonify({'message': message})
 
 @bp.route('/friends/<int:friend_id>', methods=['DELETE'])
 @token_required

@@ -137,3 +137,36 @@ def get_public_key(username):
         'username': user.username,
         'public_key': user.public_key
     })
+
+@bp.route('/user/email', methods=['PUT'])
+@token_required
+def update_email():
+    """更新用户邮箱"""
+    user = g.current_user
+    data = request.get_json()
+    if not data or 'email' not in data:
+        return jsonify({'error': 'Missing email in request body'}), 400
+
+    new_email = data['email']
+    if User.query.filter_by(email=new_email).first():
+        return jsonify({'error': 'Email already in use'}), 400
+
+    user.email = new_email
+    db.session.commit()
+    return jsonify({'message': 'Email updated successfully'}), 200
+
+@bp.route('/user/password', methods=['PUT'])
+@token_required
+def update_password():
+    """更新用户密码"""
+    user = g.current_user
+    data = request.get_json()
+    if not data or 'current_password' not in data or 'new_password' not in data:
+        return jsonify({'error': 'Missing current_password or new_password'}), 400
+
+    if not user.check_password(data['current_password']):
+        return jsonify({'error': 'Invalid current password'}), 401
+
+    user.set_password(data['new_password'])
+    db.session.commit()
+    return jsonify({'message': 'Password updated successfully'}), 200

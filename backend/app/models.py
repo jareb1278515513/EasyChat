@@ -50,6 +50,19 @@ class User(db.Model):
                               backref=db.backref('friend_of', lazy='dynamic'),
                               lazy='dynamic')
 
+    # 级联删除好友请求
+    sent_friend_requests = db.relationship('FriendRequest',
+                                           foreign_keys='FriendRequest.requester_id',
+                                           backref='requester',
+                                           lazy='dynamic',
+                                           cascade='all, delete-orphan')
+    
+    received_friend_requests = db.relationship('FriendRequest',
+                                               foreign_keys='FriendRequest.receiver_id',
+                                               backref='receiver',
+                                               lazy='dynamic',
+                                               cascade='all, delete-orphan')
+
     def set_password(self, password):
         """设置密码(自动生成salt并哈希)"""
         self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')

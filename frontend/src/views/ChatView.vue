@@ -2,7 +2,7 @@
   <div class="chat-container">
     <div class="sidebar">
       <div class="current-user-info">
-        <h4>欢迎, {{ currentUser }}</h4>
+        <h4>{{ currentUser }}</h4>
       </div>
       
       <!-- Friend Requests Section -->
@@ -41,6 +41,8 @@
         </li>
       </ul>
 
+      <button v-if="isAdmin" @click="goToAdmin" class="admin-button">管理面板</button>
+      <button @click="goToSettings" class="settings-button">设置</button>
       <button @click="logout" class="logout-button">登出</button>
     </div>
     <div class="chat-window">
@@ -98,9 +100,40 @@ export default {
       currentUser: '',
       selectedImageFile: null,
       imagePreviewUrl: null,
+      isAdmin: false
     };
   },
   methods: {
+    initializePeer() {
+      const peer = getPeer();
+      if (peer) {
+        peer.on('connection', (conn) => {
+          console.log(`收到来自 ${conn.peer} 的传入连接`);
+          this.setupConnectionHandlers(conn);
+        });
+        peer.on('error', (err) => {
+          console.error('发生全局对等端错误:', err);
+          if (err.type === 'peer-unavailable') {
+            alert(`无法连接到 ${this.currentRecipient}。对方可能已离线或无法访问。`);
+          }
+        });
+      } else {
+        alert("P2P服务不可用，请重新登录。");
+        this.$router.push('/');
+      }
+    },
+    checkIfAdmin() {
+      const username = localStorage.getItem('username');
+      if (username === 'admin') {
+        this.isAdmin = true;
+      }
+    },
+    goToAdmin() {
+      this.$router.push('/admin');
+    },
+    goToSettings() {
+      this.$router.push('/settings');
+    },
     // --- PeerJS Connection Management ---
     selectRecipient(username) {
       this.currentRecipient = username;
@@ -400,32 +433,34 @@ export default {
       }
     },
   },
-  mounted() {
+  created() {
     this.currentUser = localStorage.getItem('username') || '用户';
+    this.checkIfAdmin();
+    this.initializePeer();
     this.fetchFriends();
     this.fetchFriendRequests();
-    this.statusInterval = setInterval(this.fetchFriends, 10000);
 
-    const peer = getPeer();
-    if (peer) {
-      peer.on('connection', (conn) => {
-        console.log(`收到来自 ${conn.peer} 的传入连接`);
-        this.setupConnectionHandlers(conn);
-      });
-      peer.on('error', (err) => {
-        console.error('发生全局对等端错误:', err);
-        if (err.type === 'peer-unavailable') {
-          alert(`无法连接到 ${this.currentRecipient}。对方可能已离线或无法访问。`);
-        }
-      });
-    } else {
-      alert("P2P服务不可用，请重新登录。");
-      this.$router.push('/');
-    }
+    // Listen for new friend requests
+    socket.on('new_friend_request', (request) => {
+      console.log('New friend request received:', request);
+      this.friendRequests.unshift(request); // Add to the top of the list
+      alert(`你收到了来自 ${request.requester_username} 的好友请求！`);
+    });
+
+    this.statusInterval = setInterval(this.fetchFriends, 10000);
   },
   beforeUnmount() {
-    clearInterval(this.statusInterval);
+    // Clean up socket listeners
+    socket.off('new_friend_request');
+
+    if (this.statusInterval) {
+      clearInterval(this.statusInterval);
+    }
     // Note: PeerJS connection is destroyed on logout, not just component unmount
+  },
+  mounted() {
+    // We moved most logic to created() to ensure socket listeners are set up early.
+    // mounted() can be used for DOM-specific manipulations if needed later.
   }
 };
 </script>
@@ -496,16 +531,26 @@ export default {
 .status.offline {
   background-color: #ccc;
 }
-.logout-button {
+.logout-button, .settings-button, .admin-button {
+  width: calc(100% - 20px);
   padding: 10px;
-  background-color: #ff3b30;
+  margin: 10px 10px 0 10px;
+  background-color: #f44336;
   color: white;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  display: block;
 }
-.logout-button:hover {
-  background-color: #c50000;
+.settings-button {
+  background-color: #007bff; /* Blue for settings */
+}
+.admin-button {
+  background-color: #ffc107; /* Yellow for admin */
+  color: #212529;
+}
+.logout-button:hover, .settings-button:hover, .admin-button:hover {
+  opacity: 0.9;
 }
 .chat-window {
   flex-grow: 1;

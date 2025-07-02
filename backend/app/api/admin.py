@@ -1,4 +1,4 @@
-from flask import jsonify
+from flask import jsonify, g
 from app.api import bp
 from app.api.auth import admin_required
 from app.models import User
@@ -61,4 +61,23 @@ def disconnect_user(username):
         # Forcing DB state to be correct
         user_to_disconnect.is_online = False
         db.session.commit()
-        return jsonify({'error': 'User is online in DB but not found in socket session. Status corrected.'}), 500 
+        return jsonify({'error': 'User is online in DB but not found in socket session. Status corrected.'}), 500
+
+@bp.route('/admin/users/<string:username>', methods=['DELETE'])
+@admin_required
+def delete_user(username):
+    """[管理员]删除用户"""
+    current_admin = g.current_user
+    if current_admin.username == username:
+        return jsonify({'error': 'Admin cannot delete themselves'}), 400
+
+    user_to_delete = User.query.filter_by(username=username).first()
+    if not user_to_delete:
+        return jsonify({'error': 'User not found'}), 404
+
+    # 由于在User模型中配置了级联删除，
+    # 删除用户时，与之相关的好友关系和好友请求将自动被清理。
+    db.session.delete(user_to_delete)
+    db.session.commit()
+
+    return jsonify({'message': f'User {username} has been deleted successfully.'}), 200 
