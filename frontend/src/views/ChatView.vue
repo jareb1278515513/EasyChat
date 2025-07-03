@@ -117,7 +117,7 @@ import socket from '@/services/socket';
 import api from '@/services/api';
 import * as crypto from '@/utils/crypto';
 import * as steganography from '@/utils/steganography';
-import { getPeer, destroyPeer } from '@/services/peer';
+import { getPeer, destroyPeer, encodeUsernameForPeerId, decodeUsernameFromPeerId } from '@/services/peer';
 
 const DEFAULT_AVATAR = require('@/assets/logo.png');
 
@@ -160,8 +160,9 @@ export default {
       const peer = getPeer();
       if (peer) {
         peer.on('connection', (conn) => {
-          console.log(`收到来自 ${conn.peer} 的传入连接`);
-          this.setupConnectionHandlers(conn);
+          const recipientUsername = decodeUsernameFromPeerId(conn.peer);
+          console.log(`收到来自 ${recipientUsername} 的传入连接`);
+          this.setupConnectionHandlers(conn, recipientUsername);
         });
         peer.on('error', (err) => {
           console.error('发生全局对等端错误:', err);
@@ -202,8 +203,9 @@ export default {
         console.log(`No connection to ${username} found. Attempting to connect.`);
         const peer = getPeer();
         if (peer) {
-          const conn = peer.connect(username, { reliable: true });
-          this.setupConnectionHandlers(conn);
+          const encodedUsername = encodeUsernameForPeerId(username);
+          const conn = peer.connect(encodedUsername, { reliable: true });
+          this.setupConnectionHandlers(conn, username);
         } else {
           alert("P2P服务不可用，请重新登录。");
         }
@@ -218,120 +220,162 @@ export default {
       }
     },
 
-    setupConnectionHandlers(conn) {
+    setupConnectionHandlers(conn, recipientUsername) {
       // Make this function idempotent by cleaning up old listeners
       conn.off('data');
       conn.off('open');
       conn.off('close');
       conn.off('error');
       
-      dataConnections[conn.peer] = conn;
+      dataConnections[recipientUsername] = conn;
       
       conn.on('data', (data) => {
-        this.handleNewP2PMessage({ from: conn.peer, rawMessage: data });
+        this.handleNewP2PMessage({ from: recipientUsername, rawMessage: data });
       });
 
       conn.on('open', () => {
-        console.log(`与 ${conn.peer} 的数据连接已打开。`);
+        console.log(`与 ${recipientUsername} 的数据连接已打开。`);
         // The initiator of the connection is responsible for starting the key exchange
-        if (this.currentRecipient === conn.peer && !symmetricKeys[conn.peer]) {
-          this.performKeyExchange(conn.peer, conn);
+        if (this.currentRecipient === recipientUsername && !symmetricKeys[recipientUsername]) {
+          this.performKeyExchange(recipientUsername, conn);
         }
       });
 
       conn.on('close', () => {
-        console.log(`与 ${conn.peer} 的连接已关闭。`);
-        delete dataConnections[conn.peer];
-        delete symmetricKeys[conn.peer];
+        console.log(`与 ${recipientUsername} 的连接已关闭。`);
+        delete dataConnections[recipientUsername];
+        delete symmetricKeys[recipientUsername];
       });
 
       conn.on('error', (err) => {
-        console.error(`与 ${conn.peer} 的连接发生错误:`, err);
+        console.error(`与 ${recipientUsername} 的连接发生错误:`, err);
       });
     },
 
     // --- E2EE and Messaging ---
-    async performKeyExchange(username, conn) {
+    async performKeyExchange(recipientUsername, conn) {
       try {
-        console.log(`正在与 ${username} 开始密钥交换`);
-        const { data: { public_key: friendPublicKeyPem } } = await api.getPublicKey(username);
-        const friendPublicKey = await crypto.importPublicKey(friendPublicKeyPem);
-        const symmetricKey = await crypto.generateSymmetricKey();
-        symmetricKeys[username] = symmetricKey;
+        console.log(`正在与 ${recipientUsername} 开始密钥交换...`);
+        // 1. Generate our own AES key
+        const aesKey = await crypto.generateSymmetricKey();
+        symmetricKeys[recipientUsername] = aesKey;
 
-        const exportedSymmetricKey = await window.crypto.subtle.exportKey('raw', symmetricKey);
-        const encryptedSymmetricKey = await crypto.encryptWithPublicKey(friendPublicKey, exportedSymmetricKey);
-        
-        conn.send(JSON.stringify({ type: 'key_exchange', payload: Array.from(new Uint8Array(encryptedSymmetricKey)) }));
-        console.log(`已将加密的对称密钥发送给 ${username}。`);
-      } catch (err) {
-        console.error('密钥交换失败:', err);
-        alert('无法建立安全连接。');
+        // 2. Get recipient's public key from server
+        const { data } = await api.getPublicKey(recipientUsername);
+        const friendPublicKey = await crypto.importPublicKey(data.public_key);
+
+        // 3. Encrypt our AES key with their public key
+        const exportedKey = await window.crypto.subtle.exportKey('raw', aesKey);
+        const encryptedKey = await crypto.encryptWithPublicKey(friendPublicKey, exportedKey);
+
+        // 4. Send the encrypted key as a JSON string
+        conn.send(JSON.stringify({ type: 'key_exchange', payload: Array.from(new Uint8Array(encryptedKey)) }));
+        console.log(`已向 ${recipientUsername} 发送加密的AES密钥。`);
+
+      } catch (error) {
+        console.error(`与 ${recipientUsername} 的密钥交换失败:`, error);
+        alert(`无法与 ${recipientUsername} 建立安全连接。`);
+        // Clean up on failure
+        delete symmetricKeys[recipientUsername];
         if (conn) conn.close();
       }
     },
 
-    async handleNewP2PMessage(data) {
-      const { from, rawMessage } = data;
-      const message = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage;
-      const sender = this.friends.find(f => f.username === from);
-      const senderAvatar = sender ? sender.avatar_url : null;
+    async handleNewP2PMessage({ from, rawMessage }) {
+      const recipientUsername = from;
 
-      if (message.type === 'steganography_image') {
-        if (!this.messages[from]) this.messages[from] = [];
-        this.messages[from].push({
-          from,
-          type: 'steganography_image',
-          imageUrl: message.payload,
-          avatar_url: senderAvatar
-        });
+      let message;
+      try {
+        message = JSON.parse(rawMessage);
+      } catch (error) {
+        console.error("无法解析传入的 P2P 消息:", rawMessage, error);
         return;
       }
 
       if (message.type === 'key_exchange') {
         try {
-          console.log(`收到来自 ${from} 的密钥交换请求。`);
+          console.log(`收到来自 ${recipientUsername} 的密钥交换请求。`);
           const privateKeyPem = localStorage.getItem('privateKey');
+          if (!privateKeyPem) throw new Error("无法加载私钥。");
+          
           const privateKey = await crypto.importPrivateKey(privateKeyPem);
           const encryptedKey = new Uint8Array(message.payload).buffer;
           const decryptedKey = await crypto.decryptWithPrivateKey(privateKey, encryptedKey);
-          symmetricKeys[from] = await window.crypto.subtle.importKey('raw', decryptedKey, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']);
-          console.log(`与 ${from} 成功建立对称密钥。`);
-          alert(`与 ${from} 的安全信道已建立！`);
-        } catch (err) {
-          console.error('处理密钥交换失败:', err);
+          
+          symmetricKeys[recipientUsername] = await window.crypto.subtle.importKey(
+            'raw', 
+            decryptedKey, 
+            { name: 'AES-GCM', length: 256 }, 
+            true, 
+            ['encrypt', 'decrypt']
+          );
+          console.log(`已与 ${recipientUsername} 建立安全通道。`);
+        } catch (error) {
+          console.error(`处理来自 ${recipientUsername} 的密钥交换时出错:`, error);
+          alert(`无法与 ${recipientUsername} 建立安全连接。`);
         }
         return;
       }
-      
-      if (message.type === 'chat_message') {
-        const symmetricKey = symmetricKeys[from];
-        if (!symmetricKey) return console.warn(`没有找到 ${from} 的对称密钥。`);
+
+      const key = symmetricKeys[recipientUsername];
+      if (!key) {
+        console.warn(`收到来自 ${recipientUsername} 的消息，但没有对称密钥。忽略此消息。`);
+        return;
+      }
+
+      if (message.type === 'steganography_image') {
+        if (!this.messages[recipientUsername]) this.messages[recipientUsername] = [];
+        this.messages[recipientUsername].push({
+          from: recipientUsername,
+          type: 'steganography_image',
+          imageUrl: message.payload,
+          avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar
+        });
         
+        if (this.currentRecipient !== recipientUsername) {
+          const friend = this.friends.find(f => f.username === recipientUsername);
+          if (friend) {
+            friend.hasNewMessages = true;
+          }
+        }
+        return;
+      }
+
+      if (message.type === 'chat_message') {
         try {
           const { iv, ciphertext } = message;
-          const plaintext = await crypto.decryptSymmetric(symmetricKey, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
+          const plaintext = await crypto.decryptSymmetric(key, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
+          
+          const messageToStore = {
+            from: recipientUsername,
+            message: plaintext,
+            avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar,
+          };
 
-          if (!this.messages[from]) this.messages[from] = [];
-          this.messages[from].push({ from, message: plaintext, avatar_url: senderAvatar });
-
-          if (from !== this.currentRecipient) {
-            const friend = this.friends.find(f => f.username === from);
-            if (friend) friend.hasNewMessages = true;
+          if (!this.messages[recipientUsername]) {
+            this.$set(this.messages, recipientUsername, []);
           }
-        } catch (err) {
-          console.error('解密消息失败:', err);
+          this.messages[recipientUsername].push(messageToStore);
+
+          if (this.currentRecipient !== recipientUsername) {
+            const friend = this.friends.find(f => f.username === recipientUsername);
+            if (friend) {
+              friend.hasNewMessages = true;
+            }
+          }
+        } catch (error) {
+          console.error(`解密来自 ${recipientUsername} 的消息时出错:`, error);
         }
       }
     },
 
+    // --- Message Sending ---
     async sendMessage() {
       if (!this.newMessage.trim() && !this.selectedImageFile) return;
       if (!this.currentRecipient) return;
 
-      const conn = dataConnections[this.currentRecipient];
-
       if (this.selectedImageFile) {
+        const conn = dataConnections[this.currentRecipient];
         if (!conn || !conn.open) {
           alert('无法发送图片：安全连接尚未建立。');
           return;
@@ -362,11 +406,16 @@ export default {
         return;
       }
       
-      const symmetricKey = symmetricKeys[this.currentRecipient];
-
-      if (conn && conn.open && symmetricKey) {
+      // Standard P2P message sending
+      const conn = dataConnections[this.currentRecipient];
+      if (conn && conn.open) {
+        const key = symmetricKeys[this.currentRecipient];
+        if (!key) {
+          alert("错误：无法发送消息。与此用户的安全连接尚未建立。");
+          return;
+        }
         try {
-          const { iv, ciphertext } = await crypto.encryptSymmetric(symmetricKey, this.newMessage);
+          const { iv, ciphertext } = await crypto.encryptSymmetric(key, this.newMessage);
           
           conn.send(JSON.stringify({
             type: 'chat_message',
@@ -406,6 +455,8 @@ export default {
             const oldFriend = this.friends.find(f => f.id === newFriend.id);
             if (oldFriend) {
               newFriend.hasNewMessages = oldFriend.hasNewMessages;
+            } else {
+              newFriend.hasNewMessages = false; // Initialize for new friends
             }
           });
           this.friends = newFriends;
@@ -671,6 +722,7 @@ export default {
 
 .friend-info {
   flex-grow: 1;
+  position: relative; /* For positioning the indicator */
 }
 
 /* 聊天窗口 */
@@ -817,13 +869,20 @@ button:active {
 .status-dot {
   height: 10px;
   width: 10px;
+  background-color: #bbb;
   border-radius: 50%;
   display: inline-block;
   margin-left: 8px;
-  border: 1px solid var(--main-color);
+  border: 1px solid #333;
 }
-.status-dot.online { background-color: var(--success-color); }
-.status-dot.offline { background-color: var(--font-color-sub); }
+
+.status-dot.online {
+  background-color: var(--success-color, #2ecc71);
+}
+
+.status-dot.offline {
+  background-color: #ccc;
+}
 
 /* In-chat image styles */
 .chat-image {
@@ -975,6 +1034,18 @@ button:active {
   object-fit: cover;
   border: 2px solid var(--main-color);
   margin-right: 10px; /* 为头像右侧增加间距 */
+}
+
+.new-message-indicator {
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background-color: var(--danger-color, #e74c3c);
+  border-radius: 50%;
+  border: 1px solid white;
 }
 
 </style> 

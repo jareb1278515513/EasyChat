@@ -1,7 +1,28 @@
 import Peer from 'peerjs';
 
 let peer = null;
-let myPeerId = null;
+
+const encodeUsernameForPeerId = (username) => {
+  // Use Base64 encoding that is safe for PeerJS IDs.
+  // btoa(unescape(encodeURIComponent(str))) is a common trick to handle Unicode.
+  // The '=' padding is removed as it's not a valid PeerJS ID character.
+  return btoa(unescape(encodeURIComponent(username))).replace(/=/g, "");
+};
+
+const decodeUsernameFromPeerId = (peerId) => {
+  // Add the removed Base64 padding back before decoding.
+  let paddedId = peerId;
+  switch (peerId.length % 4) {
+    case 2:
+      paddedId += '==';
+      break;
+    case 3:
+      paddedId += '=';
+      break;
+  }
+  // Use the corresponding decoding trick.
+  return decodeURIComponent(escape(atob(paddedId)));
+};
 
 const initializePeer = (username) => {
   if (peer && !peer.destroyed) {
@@ -9,8 +30,8 @@ const initializePeer = (username) => {
     peer.destroy();
   }
   
-  myPeerId = username; // Use username as the Peer ID
-  peer = new Peer(myPeerId, {
+  const peerId = encodeUsernameForPeerId(username);
+  peer = new Peer(peerId, {
     // For now, we use the public PeerJS server.
     // In a production environment, you should host your own PeerServer.
     host: '0.peerjs.com',
@@ -36,15 +57,19 @@ const initializePeer = (username) => {
 };
 
 const getPeer = () => peer;
-const getPeerId = () => myPeerId;
 
 const destroyPeer = () => {
   if (peer) {
     peer.destroy();
     peer = null;
-    myPeerId = null;
     console.log('PeerJS connection destroyed.');
   }
 };
 
-export { initializePeer, getPeer, getPeerId, destroyPeer }; 
+export { 
+  initializePeer, 
+  getPeer, 
+  destroyPeer, 
+  encodeUsernameForPeerId, 
+  decodeUsernameFromPeerId 
+}; 
