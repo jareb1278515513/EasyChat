@@ -4,15 +4,15 @@
     EasyChat - 安全的端到端加密即时通讯
   </h1>
   <p>
-    <strong>一款采用C/S与P2P混合架构，通过端到端加密和信息隐藏技术，确保通信私密与安全的即时通讯桌面应用。</strong>
+    <strong>一款采用C/S与P2P混合架构，通过端到端加密和信息隐藏技术，确保通信私密与安全的即时通讯应用。</strong>
   </p>
   
   <p>
-    <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
-    <img src="https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D" alt="Vue.js">
-    <img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask">
-    <img src="https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Socket.io">
-    <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT">
+    <a href="https://www.python.org" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"></a>
+    <a href="https://vuejs.org" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Vue.js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D" alt="Vue.js"></a>
+    <a href="https://flask.palletsprojects.com" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white" alt="Flask"></a>
+    <a href="https://socket.io" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/Socket.io-010101?style=for-the-badge&logo=socketdotio&logoColor=white" alt="Socket.io"></a>
+    <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener noreferrer"><img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License: MIT"></a>
   </p>
 </div>
 
@@ -28,6 +28,7 @@
 - [🛠️ 技术栈与架构](#️-技术栈与架构)
 - [🏗️ 项目代码结构](#️-项目代码结构)
 - [🚀 安装与运行](#-安装与运行)
+- [⚙️ 运行细节](#️-运行细节)
 - [🤝 贡献指南](#-贡献指南)
 - [📝 许可证](#-许可证)
 - [📚 API 文档](#-api-文档)
@@ -191,6 +192,24 @@ npm run serve
 - `start_frontend.bat`: 自动进入前端目录，并启动 Vue 开发服务器。
 
 > 在完成上述的首次依赖安装后，你只需分别双击运行这两个脚本即可快速启动整个应用。
+
+## ⚙️ 运行效果
+**登陆界面**
+
+![alt text](img/login.png)
+
+**注册界面**
+
+![alt text](img/reg.png)
+
+**聊天界面**
+
+![alt text](img/chat.png)
+
+**深色主题**
+
+![alt text](img/black.png)
+
 
 ## 🤝 贡献指南
 
