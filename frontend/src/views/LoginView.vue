@@ -94,7 +94,15 @@ export default {
         this.$router.push('/chat');
       } catch (error) {
         console.error('登录失败:', error.response ? error.response.data : error.message);
-        alert('登录失败：' + (error.response?.data?.message || '网络错误'));
+        let errorMessage = '网络错误';
+        if (error.response && error.response.data && error.response.data.error) {
+            if (error.response.data.error === 'Invalid username or password') {
+                errorMessage = '用户名或密码错误';
+            } else {
+                errorMessage = error.response.data.error;
+            }
+        }
+        alert('登录失败：' + errorMessage);
       }
     }
   }

@@ -103,7 +103,7 @@ def get_friend_requests():
     
     返回:
         - 一个包含所有待处理请求信息的JSON数组。每个请求对象包括请求ID、
-          发送者ID、发送者用户名和请求时间戳。
+        发送者ID、发送者用户名和请求时间戳。
     """
     user = g.current_user
     # 查询所有发送给当前用户且状态为'pending'的请求
@@ -116,12 +116,12 @@ def get_friend_requests():
         requester = User.query.get(req.requester_id)
         # 增加一个健壮性检查：确保发送请求的用户仍然存在
         if requester:
-        requests_data.append({
-            'id': req.id,
-            'requester_id': req.requester_id,
-            'requester_username': requester.username,
-            'timestamp': req.timestamp
-        })
+            requests_data.append({
+                'id': req.id,
+                'requester_id': req.requester_id,
+                'requester_username': requester.username,
+                'timestamp': req.timestamp
+            })
         
     return jsonify(requests_data)
 
