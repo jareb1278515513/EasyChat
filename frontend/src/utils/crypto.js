@@ -1,18 +1,24 @@
+/**
+ * 加密模块配置参数
+ */
+
+// RSA-OAEP密钥生成参数
 const keyGenParams = {
-  name: 'RSA-OAEP',
-  modulusLength: 2048,
-  publicExponent: new Uint8Array([1, 0, 1]),
-  hash: 'SHA-256',
+  name: 'RSA-OAEP',  // 使用RSA-OAEP算法
+  modulusLength: 2048, // 密钥长度2048位
+  publicExponent: new Uint8Array([1, 0, 1]), // 公钥指数65537
+  hash: 'SHA-256', // 使用SHA-256哈希算法
 };
 
+// AES-GCM密钥生成参数
 const aesKeyGenParams = {
-  name: 'AES-GCM',
-  length: 256,
+  name: 'AES-GCM', // 使用AES-GCM算法
+  length: 256, // 密钥长度256位
 };
 
 /**
- * Converts a PEM string to an ArrayBuffer.
- * @param {string} pem - The PEM formatted string.
+ * 将PEM字符串转换为ArrayBuffer。
+ * @param {string} pem - PEM格式字符串。
  * @returns {ArrayBuffer}
  */
 function pemToArrayBuffer(pem) {
@@ -27,7 +33,7 @@ function pemToArrayBuffer(pem) {
 }
 
 /**
- * Generates an RSA-OAEP key pair for encryption.
+ * 生成RSA-OAEP加密用的密钥对。
  * @returns {Promise<CryptoKeyPair>}
  */
 async function generateRsaKeyPair() {
@@ -35,9 +41,9 @@ async function generateRsaKeyPair() {
 }
 
 /**
- * Exports a CryptoKey to a PEM-like string format.
- * @param {string} format - 'spki' for public key, 'pkcs8' for private key.
- * @param {CryptoKey} key - The key to export.
+ * 导出CryptoKey为PEM格式字符串。
+ * @param {string} format - spki为公钥，pkcs8为私钥。
+ * @param {CryptoKey} key - 要导出的密钥。
  * @returns {Promise<string>}
  */
 async function exportKeyToPem(format, key) {
@@ -49,8 +55,8 @@ async function exportKeyToPem(format, key) {
 }
 
 /**
- * Imports a PEM-formatted public key.
- * @param {string} pem - The PEM string.
+ * 导入PEM格式的公钥。
+ * @param {string} pem - PEM字符串。
  * @returns {Promise<CryptoKey>}
  */
 async function importPublicKey(pem) {
@@ -59,8 +65,8 @@ async function importPublicKey(pem) {
 }
 
 /**
- * Imports a PEM-formatted private key.
- * @param {string} pem - The PEM string.
+ * 导入PEM格式的私钥。
+ * @param {string} pem - PEM字符串。
  * @returns {Promise<CryptoKey>}
  */
 async function importPrivateKey(pem) {
@@ -69,7 +75,7 @@ async function importPrivateKey(pem) {
 }
 
 /**
- * Generates a symmetric AES-GCM key.
+ * 生成对称AES-GCM密钥。
  * @returns {Promise<CryptoKey>}
  */
 async function generateSymmetricKey() {
@@ -77,56 +83,56 @@ async function generateSymmetricKey() {
 }
 
 /**
- * Encrypts data with an RSA public key.
- * @param {CryptoKey} publicKey - The public key to encrypt with.
- * @param {ArrayBuffer} data - The data to encrypt.
- * @returns {Promise<ArrayBuffer>} - The encrypted data.
+ * 使用RSA公钥加密数据。
+ * @param {CryptoKey} publicKey - 用于加密的公钥。
+ * @param {ArrayBuffer} data - 要加密的数据。
+ * @returns {Promise<ArrayBuffer>} - 加密后的数据。
  */
 async function encryptWithPublicKey(publicKey, data) {
-    return window.crypto.subtle.encrypt(keyGenParams, publicKey, data);
+  return window.crypto.subtle.encrypt(keyGenParams, publicKey, data);
 }
 
 /**
- * Decrypts data with an RSA private key.
- * @param {CryptoKey} privateKey - The private key to decrypt with.
- * @param {ArrayBuffer} encryptedData - The data to decrypt.
- * @returns {Promise<ArrayBuffer>} - The decrypted data.
+ * 使用RSA私钥解密数据。
+ * @param {CryptoKey} privateKey - 用于解密的私钥。
+ * @param {ArrayBuffer} encryptedData - 要解密的数据。
+ * @returns {Promise<ArrayBuffer>} - 解密后的数据。
  */
 async function decryptWithPrivateKey(privateKey, encryptedData) {
-    return window.crypto.subtle.decrypt(keyGenParams, privateKey, encryptedData);
+  return window.crypto.subtle.decrypt(keyGenParams, privateKey, encryptedData);
 }
 
 /**
- * Encrypts a message with a symmetric key using AES-GCM.
- * @param {CryptoKey} key - The symmetric key.
- * @param {string} plaintext - The message to encrypt.
+ * 使用对称密钥（AES-GCM）加密消息。
+ * @param {CryptoKey} key - 对称密钥。
+ * @param {string} plaintext - 要加密的明文。
  * @returns {Promise<{iv: Uint8Array, ciphertext: ArrayBuffer}>}
  */
 async function encryptSymmetric(key, plaintext) {
-    const iv = window.crypto.getRandomValues(new Uint8Array(12)); // GCM standard IV size
-    const encodedPlaintext = new TextEncoder().encode(plaintext);
-    const ciphertext = await window.crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        encodedPlaintext
-    );
-    return { iv, ciphertext };
+  const iv = window.crypto.getRandomValues(new Uint8Array(12)); // 标准IV长度
+  const encodedPlaintext = new TextEncoder().encode(plaintext);
+  const ciphertext = await window.crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    encodedPlaintext
+  );
+  return { iv, ciphertext };
 }
 
 /**
- * Decrypts a message with a symmetric key using AES-GCM.
- * @param {CryptoKey} key - The symmetric key.
- * @param {ArrayBuffer} ciphertext - The encrypted data.
- * @param {Uint8Array} iv - The initialization vector.
- * @returns {Promise<string>} - The decrypted plaintext.
+ * 使用对称密钥（AES-GCM）解密消息。
+ * @param {CryptoKey} key - 对称密钥。
+ * @param {ArrayBuffer} ciphertext - 加密数据。
+ * @param {Uint8Array} iv - 初始化向量。
+ * @returns {Promise<string>} - 解密后的明文。
  */
 async function decryptSymmetric(key, ciphertext, iv) {
-    const decrypted = await window.crypto.subtle.decrypt(
-        { name: 'AES-GCM', iv },
-        key,
-        ciphertext
-    );
-    return new TextDecoder().decode(decrypted);
+  const decrypted = await window.crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    ciphertext
+  );
+  return new TextDecoder().decode(decrypted);
 }
 
 export {
@@ -139,4 +145,4 @@ export {
   decryptWithPrivateKey,
   encryptSymmetric,
   decryptSymmetric
-}; 
+};

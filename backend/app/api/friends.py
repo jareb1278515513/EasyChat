@@ -4,7 +4,7 @@ from app.api.auth import token_required
 from app.models import User, FriendRequest
 from app import db, socketio
 
-#好友相关操作均需要token认证
+
 
 @bp.route('/friends', methods=['GET'])
 @token_required
@@ -69,7 +69,7 @@ def send_friend_request():
     db.session.add(new_request)
     db.session.commit()
 
-    # Emit a notification to the receiver
+    
     socketio.emit('new_friend_request', {
         'id': new_request.id,
         'requester_id': requester.id,
@@ -90,7 +90,7 @@ def get_friend_requests():
     user = g.current_user
     requests = FriendRequest.query.filter_by(receiver_id=user.id, status='pending').all()
     
-    # We need to get the username of the requester
+    
     requests_data = []
     for req in requests:
         requester = User.query.get(req.requester_id)
@@ -140,7 +140,7 @@ def respond_to_friend_request(request_id):
         current_user.add_friend(requester)
         db.session.commit()
         message = 'Friend request accepted successfully.'
-    else: # action == 'reject'
+    else: 
         db.session.delete(friend_request)
         db.session.commit()
         message = 'Friend request rejected successfully.'
@@ -169,10 +169,10 @@ def remove_friend(friend_id):
     if not current_user.is_friend(friend_to_remove):
         return jsonify({'error': 'You are not friends with this user'}), 400
 
-    # 1. Remove the friendship
+    
     current_user.remove_friend(friend_to_remove)
 
-    # 2. Delete any friend requests between them, in either direction
+    
     FriendRequest.query.filter(
         ((FriendRequest.requester_id == current_user.id) & (FriendRequest.receiver_id == friend_to_remove.id)) |
         ((FriendRequest.requester_id == friend_to_remove.id) & (FriendRequest.receiver_id == current_user.id))

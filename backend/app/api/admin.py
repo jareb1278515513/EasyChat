@@ -54,13 +54,13 @@ def disconnect_user(username):
 
     sid = get_sid_by_username(username)
     if sid:
-        # This will trigger the 'disconnect' event handler in socket_events.py
-        # We must specify the namespace, as this is called from an HTTP request context
+        
+        
         disconnect(sid, namespace='/')
         return jsonify({'message': f'Disconnect signal sent to {username}.'}), 200
     else:
-        # This case might happen if the in-memory map is out of sync with the DB
-        # Forcing DB state to be correct
+        
+        
         user_to_disconnect.is_online = False
         db.session.commit()
         return jsonify({'error': 'User is online in DB but not found in socket session. Status corrected.'}), 500
@@ -77,8 +77,8 @@ def delete_user(username):
     if not user_to_delete:
         return jsonify({'error': 'User not found'}), 404
 
-    # 由于在User模型中配置了级联删除，
-    # 删除用户时，与之相关的好友关系和好友请求将自动被清理。
+    
+    
     db.session.delete(user_to_delete)
     db.session.commit()
 

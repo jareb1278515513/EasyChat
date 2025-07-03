@@ -22,7 +22,7 @@ def create_app(config_class=Config):
     from app.api import bp as api_blueprint
     app.register_blueprint(api_blueprint, url_prefix='/api')
 
-    # Import socket events after app initialization to avoid circular dependencies
+    
     from app import socket_events
 
     @app.route('/')

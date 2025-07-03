@@ -6,7 +6,7 @@ import jwt
 from datetime import datetime, timedelta, timezone
 from app.api.auth import token_required
 
-# 检查服务器是否运行
+
 @bp.route('/ping')
 def ping():
     """简单检查接口，服务器正常运行则返回Pong!"""
@@ -31,21 +31,21 @@ def register():
     email = data.get('email')
     password = data.get('password')
 
-    # 检查必填字段
+    
     if not username or not email or not password:
         return jsonify({'error': 'Missing username, email, or password'}), 400
 
-    # 检查用户名是否已存在
+    
     if User.query.filter_by(username=username).first():
         return jsonify({'error': 'Username already exists'}), 400
     
-    # 检查邮箱是否已注册
+    
     if User.query.filter_by(email=email).first():
         return jsonify({'error': 'Email already registered'}), 400
 
-    # 创建新用户并保存到数据库
+    
     user = User(username=username, email=email)
-    user.set_password(password)  # 密码会经过bcrypt加盐哈希处理
+    user.set_password(password)  
     db.session.add(user)
     db.session.commit()
 
@@ -73,25 +73,25 @@ def login():
     if not username or not password:
         return jsonify({'error': 'Missing username or password'}), 400
 
-    # 验证用户凭证
+    
     user = User.query.filter_by(username=username).first()
     if user is None or not user.check_password(password):
         return jsonify({'error': 'Invalid username or password'}), 401
 
-    # 更新用户登录信息(IP和端口)
+    
     user.ip_address = request.remote_addr
     port = data.get('port')
     if port:
         user.port = port
     db.session.commit()
 
-    # 生成JWT令牌(有效期24小时)
+    
     token = jwt.encode(
         {
             'user_id': user.id,
             'exp': datetime.now(timezone.utc) + timedelta(hours=24)
         },
-        current_app.config['SECRET_KEY'],  # 使用应用密钥签名
+        current_app.config['SECRET_KEY'],  
         algorithm='HS256'
     )
 
@@ -111,7 +111,7 @@ def upload_key():
     if not data or 'public_key' not in data:
         return jsonify({'error': 'Missing public_key in request body'}), 400
     
-    # 从JWT令牌中获取当前用户
+    
     user = g.current_user
     user.public_key = data['public_key']
     db.session.commit()

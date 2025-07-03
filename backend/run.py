@@ -1,8 +1,8 @@
 from app import create_app, socketio
-from app import models  # 确保模型被注册到SQLAlchemy
+from app import models  
 
-# 创建Flask应用实例
-# create_app()会初始化所有扩展和蓝图
+
+
 app = create_app()
 
 if __name__ == '__main__':

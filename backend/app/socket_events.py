@@ -9,9 +9,6 @@ WebSocket事件处理模块
 处理所有SocketIO相关事件和连接管理
 """
 
-# 在线用户映射表(双向映射)
-# 结构: {username: sid, sid: username}
-# 用于快速查找用户连接状态
 online_users = {}
 
 def get_sid_by_username(username):
@@ -39,31 +36,31 @@ def handle_authenticate(data):
     """
     user = g.current_user
     user.is_online = True
-    # 客户端应提供其监听IP和端口,用于P2P直连
+    
     user.ip_address = data.get('ip_address', request.remote_addr)
     user.port = data.get('port')
     db.session.commit()
 
-    # 建立双向映射关系,用于断开连接处理
+    
     online_users[user.username] = request.sid
     online_users[request.sid] = user.username
 
-    # 加入以用户名为名的房间,用于定向消息发送
+    
     join_room(user.username)
     print(f'用户 {user.username} 已认证, 状态设为在线, 并加入房间')
 
-    # 通知好友当前用户上线,并通知当前用户其好友的在线状态
+    
     for friend in user.friends:
         if friend.is_online:
-            # 通知好友当前用户已上线
+            
             emit('friend_status_update', {
                 'username': user.username,
                 'is_online': True,
-                'ip_address': user.ip_address,  # P2P通信所需的ip
-                'port': user.port               # P2P通信所需的端口
+                'ip_address': user.ip_address,  
+                'port': user.port               
             }, to=friend.username)
 
-            # 通知当前用户该好友在线
+            
             emit('friend_status_update', {
                 'username': friend.username,
                 'is_online': True,
@@ -81,18 +78,18 @@ def handle_disconnect():
     3. 通知好友离线状态变更
     """
     if request.sid in online_users:
-        username = online_users.pop(request.sid)  # 获取并移除用户名映射
-        online_users.pop(username, None)  # 移除反向映射
+        username = online_users.pop(request.sid)  
+        online_users.pop(username, None)  
 
         user = User.query.filter_by(username=username).first()
         if user:
             user.is_online = False
-            user.ip_address = None  # 清除IP地址
-            user.port = None       # 清除端口号
+            user.ip_address = None  
+            user.port = None       
             db.session.commit()
             print(f'用户 {user.username} 已断开连接, 状态设为离线')
 
-            # 通知好友该用户已离线
+            
             for friend in user.friends:
                 if friend.is_online:
                     emit('friend_status_update', {
@@ -125,13 +122,13 @@ def handle_webrtc_signal(data):
         print("[信令错误] 缺少接收者用户名(to字段)")
         return
 
-    # 信令数据可以是offer/answer/ICE候选等
-    # 此处仅做透明转发
+    
+    
     signal_data = data.get('signal')
     
     print(f"转发WebRTC信令: 从 {g.current_user.username} 到 {to_username}")
 
     emit('webrtc_signal', {
-        'from': g.current_user.username,  # 发送者
-        'signal': signal_data            # 信令数据
+        'from': g.current_user.username,  
+        'signal': signal_data            
     }, to=to_username)

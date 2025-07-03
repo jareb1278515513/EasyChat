@@ -26,25 +26,25 @@ def get_user_info(username):
     target_user = User.query.filter_by(username=username).first()
 
     if not target_user:
-        # 用户不存在时返回404
+        
         return jsonify({'error': 'User not found'}), 404
 
-    # 权限检查: 只能查看自己或好友的信息
+    
     if target_user.id != current_user.id and not current_user.is_friend(target_user):
-        # 非好友关系返回403禁止访问
+        
         return jsonify({'error': 'Access denied: you can only view info for your friends.'}), 403
 
-    # 检查用户在线状态
+    
     if not target_user.is_online:
         return jsonify({
             'username': target_user.username,
             'is_online': False
         }), 200
 
-    # 返回完整的在线用户信息
+    
     return jsonify({
-        'username': target_user.username,  # 用户名
-        'is_online': True,                # 在线状态标志
-        'ip_address': target_user.ip_address,  # 用户IP
-        'port': target_user.port          # 用户端口
+        'username': target_user.username,  
+        'is_online': True,                
+        'ip_address': target_user.ip_address,  
+        'port': target_user.port          
     })

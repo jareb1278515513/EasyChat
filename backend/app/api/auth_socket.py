@@ -17,23 +17,23 @@ def token_required_socket(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 优先从headers获取token(连接时传入)
+        
         token = None
         if 'Authorization' in request.headers:
             token = request.headers['Authorization'].split(" ")[1]
 
-        # 其次从事件数据获取token(后续事件传入)
+        
         if not token and args and isinstance(args[0], dict):
             token = args[0].get('token')
 
         if not token:
             print("Authentication token is missing.")
-            return  # WebSocket无法返回错误响应，只能终止处理
+            return  
 
         try:
-            # 解码JWT令牌
+            
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=["HS256"])
-            # 验证用户存在
+            
             g.current_user = User.query.get(data['user_id'])
             if not g.current_user:
                  print("User not found for token.")

@@ -16,7 +16,7 @@ def token_required(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 从Authorization头获取token
+        
         token = None
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -26,9 +26,9 @@ def token_required(f):
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
-            # 解码并验证JWT
+            
             data = jwt.decode(token, current_app.config['SECRET_KEY'], algorithms=['HS256'])
-            # 验证用户是否存在
+            
             g.current_user = User.query.get(data['user_id'])
             if not g.current_user:
                  return jsonify({'message': 'Token is invalid!'}), 401
@@ -50,7 +50,7 @@ def admin_required(f):
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        # 复用token_required的验证逻辑
+        
         token = None
         auth_header = request.headers.get('Authorization')
         if auth_header and auth_header.startswith('Bearer '):
@@ -69,7 +69,7 @@ def admin_required(f):
         except jwt.InvalidTokenError:
             return jsonify({'message': 'Token is invalid!'}), 401
 
-        # 额外检查管理员权限
+        
         if not g.current_user.is_admin:
             return jsonify({'message': 'Administrator access required!'}), 403
         
