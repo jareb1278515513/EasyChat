@@ -234,10 +234,20 @@ export default {
       });
 
       conn.on('open', () => {
-        console.log(`与 ${recipientUsername} 的数据连接已打开。`);
-        // The initiator of the connection is responsible for starting the key exchange
-        if (this.currentRecipient === recipientUsername && !symmetricKeys[recipientUsername]) {
+        console.log(`与 ${recipientUsername} 的数据连接已打开。准备进行密钥交换...`);
+
+        // To prevent race conditions where both peers try to initiate key exchange,
+        // we use a simple convention: the peer with the lexicographically smaller username
+        // is responsible for initiating the exchange.
+        const amIInitiator = this.currentUser < recipientUsername;
+
+        if (amIInitiator && !symmetricKeys[recipientUsername]) {
+          console.log(`我 (${this.currentUser}) 的用户名较小，将发起与 ${recipientUsername} 的密钥交换。`);
           this.performKeyExchange(recipientUsername, conn);
+        } else if (!amIInitiator) {
+          console.log(`我 (${this.currentUser}) 的用户名较大，将等待 ${recipientUsername} 发起密钥交换。`);
+        } else if (symmetricKeys[recipientUsername]) {
+          console.log(`已存在与 ${recipientUsername} 的密钥，无需再次交换。`);
         }
       });
 
@@ -1038,14 +1048,14 @@ button:active {
 
 .new-message-indicator {
   position: absolute;
-  right: 5px;
+  right: 15px; /* Increased from 5px to create more space */
   top: 50%;
   transform: translateY(-50%);
-  width: 8px;
-  height: 8px;
+  width: 10px; /* Matched to status-dot size */
+  height: 10px; /* Matched to status-dot size */
   background-color: var(--danger-color, #e74c3c);
   border-radius: 50%;
-  border: 1px solid white;
+  border: 1px solid #333; /* Matched to status-dot border */
 }
 
 </style> 
