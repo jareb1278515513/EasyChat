@@ -191,6 +191,9 @@ npm run serve
 - **[Flask-SocketIO](https://flask-socketio.readthedocs.io/)**: 为应用提供了实时、双向的通信能力。
 - **[PeerJS](https://peerjs.com/)**: 极大地简化了 WebRTC 的实现，使得P2P通信成为可能。
 - **[DeepSeek](https://www.deepseek.com/)**: 为项目提供了强大的AI对话能力。
+- **[Uiverse](https://uiverse.io/)**: Uiverse 是一个汇集了各种免费 CSS/Tailwind UI 元素的创意平台。
+
+**感谢创作者[Alayna](https://laynsleaf.com/)在Uiverse开源的[sour-dog-94](https://uiverse.io/ayyjayy2/sour-dog-94),这是创作我前端UI时的巨大财富！**
 
 同时，也要感谢所有为这些项目以及我们所依赖的其他无数开源库做出贡献的开发者们。你们的工作是巨人肩膀，让我们看得更远。
 
