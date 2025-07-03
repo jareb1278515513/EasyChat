@@ -116,12 +116,12 @@ def get_friend_requests():
         requester = User.query.get(req.requester_id)
         # 增加一个健壮性检查：确保发送请求的用户仍然存在
         if requester:
-            requests_data.append({
-                'id': req.id,
-                'requester_id': req.requester_id,
-                'requester_username': requester.username,
-                'timestamp': req.timestamp
-            })
+        requests_data.append({
+            'id': req.id,
+            'requester_id': req.requester_id,
+            'requester_username': requester.username,
+            'timestamp': req.timestamp
+        })
         
     return jsonify(requests_data)
 

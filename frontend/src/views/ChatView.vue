@@ -118,8 +118,20 @@ import api from '@/services/api';
 import * as crypto from '@/utils/crypto';
 import * as steganography from '@/utils/steganography';
 import { getPeer, destroyPeer, encodeUsernameForPeerId, decodeUsernameFromPeerId } from '@/services/peer';
+import { getAiReply } from '@/services/ai';
 
 const DEFAULT_AVATAR = require('@/assets/logo.png');
+
+const AI_ASSISTANT = {
+  id: 'deepseek-ai-assistant',
+  username: 'DeepSeek助手',
+  is_online: true,
+  avatar_url: require('@/assets/ai_avatar.png'),
+  bio: '我是一个由 DeepSeek 驱动的 AI 助手。你可以问我任何问题！',
+  gender: '未知',
+  age: '未知',
+  hasNewMessages: false,
+};
 
 // Store for active PeerJS data connections, and symmetric keys for each chat session.
 const dataConnections = {};
@@ -192,12 +204,26 @@ export default {
       this.currentRecipient = username;
       if (!this.messages[username]) {
         this.messages[username] = [];
+        // First time talking to AI, add a welcome message.
+        if (username === AI_ASSISTANT.username) {
+            this.messages[username].push({
+                from: AI_ASSISTANT.username,
+                message: '你好！我是你的 DeepSeek 智能助手，有什么可以帮助你的吗？',
+                avatar_url: AI_ASSISTANT.avatar_url,
+                type: 'chat_message'
+            });
+        }
       }
       const friend = this.friends.find(f => f.username === username);
       if (friend) {
         friend.hasNewMessages = false;
       }
       
+      if (username === AI_ASSISTANT.username) {
+        // It's the AI, so we don't do any P2P connection logic.
+        return;
+      }
+
       // New, more robust connection logic
       if (!dataConnections[username]) {
         console.log(`No connection to ${username} found. Attempting to connect.`);
@@ -363,7 +389,7 @@ export default {
           };
 
           if (!this.messages[recipientUsername]) {
-            this.$set(this.messages, recipientUsername, []);
+            this.messages[recipientUsername] = [];
           }
           this.messages[recipientUsername].push(messageToStore);
 
@@ -383,6 +409,33 @@ export default {
     async sendMessage() {
       if (!this.newMessage.trim() && !this.selectedImageFile) return;
       if (!this.currentRecipient) return;
+      
+      if (this.currentRecipient === AI_ASSISTANT.username) {
+        const userMessageContent = this.newMessage;
+        this.newMessage = '';
+
+        // Add user message to UI
+        if (!this.messages[AI_ASSISTANT.username]) {
+          this.messages[AI_ASSISTANT.username] = [];
+        }
+        this.messages[AI_ASSISTANT.username].push({ from: this.currentUser, message: userMessageContent, avatar_url: this.currentUserAvatar });
+
+        // Prepare message history for API, filtering out non-chat messages
+        const messageHistory = this.messages[AI_ASSISTANT.username]
+          .filter(msg => msg.message) // Ensure message exists
+          .map(msg => ({
+            role: msg.from === this.currentUser ? 'user' : 'assistant',
+            content: msg.message
+        }));
+        
+        const apiMessages = [{ role: 'system', content: 'You are a helpful assistant.' }, ...messageHistory];
+
+        // Call AI service and add response to UI
+        const aiReply = await getAiReply(apiMessages);
+        this.messages[AI_ASSISTANT.username].push({ from: AI_ASSISTANT.username, message: aiReply, avatar_url: AI_ASSISTANT.avatar_url });
+
+        return;
+      }
 
       if (this.selectedImageFile) {
         const conn = dataConnections[this.currentRecipient];
@@ -469,9 +522,18 @@ export default {
               newFriend.hasNewMessages = false; // Initialize for new friends
             }
           });
-          this.friends = newFriends;
+          
+          // Filter out the AI assistant if it's already there before unshifting
+          this.friends = newFriends.filter(f => f.id !== AI_ASSISTANT.id);
+          this.friends.unshift(AI_ASSISTANT);
         })
-        .catch(error => console.error('获取好友列表时出错:', error));
+        .catch(error => {
+            console.error('获取好友列表时出错:', error);
+            // Even if fetching fails, ensure the AI assistant is present
+            if (!this.friends.some(f => f.id === AI_ASSISTANT.id)) {
+                this.friends.unshift(AI_ASSISTANT);
+            }
+        });
     },
 
     fetchFriendRequests() {
@@ -503,6 +565,10 @@ export default {
     },
     
     removeFriend(friendId) {
+      if (friendId === AI_ASSISTANT.id) {
+        alert("不能移除 AI 助手。");
+        return;
+      }
       if (confirm('您确定要删除这位好友吗？')) {
         api.removeFriend(friendId)
           .then(() => {
@@ -559,6 +625,11 @@ export default {
     },
     // --- Profile Modal ---
     async showFriendProfile(username) {
+      if (username === AI_ASSISTANT.username) {
+        this.friendProfile = AI_ASSISTANT;
+        this.showProfileModal = true;
+        return;
+      }
       try {
         const { data } = await api.getUserProfile(username);
         this.friendProfile = data;
