@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// 从环境变量读取后端的基地址，如果未设置，则默认为本地开发地址
+const API_BASE_URL = process.env.VUE_APP_API_BASE_URL || 'http://localhost:5000';
+
 const apiClient = axios.create({
-  baseURL: process.env.VUE_APP_API_URL || 'http://localhost:5000/api',
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json'
   }

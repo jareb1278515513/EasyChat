@@ -137,7 +137,7 @@ python reset_db.py
 # 5. 启动后端服务
 python run.py
 ```
-> 后端服务将运行在 `http://localhost:5000`。
+> 后端服务将运行在 `http://localhost:5000`，并监听 `0.0.0.0` 地址，允许来自局域网的连接。
 
 ### 2. 前端设置
 
@@ -147,8 +147,27 @@ cd frontend
 
 # 2. 安装依赖
 npm install
+```
 
-# 3. 运行开发服务器
+**3. 配置环境变量**
+
+为了使所有功能（特别是AI助手）正常工作，你需要在 `frontend` 目录下**创建**一个名为 `.env.local` 的文件，并配置以下变量：
+
+-   **AI 助手 API 密钥 (必需)**:
+    ```
+    VUE_APP_DEEPSEEK_API_KEY="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+    ```
+    > 将 `sk-xxx...` 替换为你的真实 DeepSeek API 密钥。
+
+-   **后端服务地址 (可选)**:
+    默认情况下，前端连接到本机 (`http://localhost:5000`) 的后端。若要连接到网络上另一台计算机的后端，请添加此变量：
+    ```
+    VUE_APP_API_BASE_URL="http://<后端主机的IP地址>:5000"
+    ```
+    > 将 `<后端主机的IP地址>` 替换为后端服务所在机器的真实局域网 IP 地址 (例如: `192.168.1.100`)。
+
+```bash
+# 4. 运行开发服务器
 #    (支持通过环境变量指定端口, 默认为8081)
 npm run serve
 ```
