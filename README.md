@@ -41,6 +41,7 @@
 - **👥 好友管理**: 支持添加好友、删除好友、实时接受/拒绝好友请求。
 - **🟢 实时状态**: 通过 WebSocket 实时更新好友的在线状态。
 - **💬 P2P 即时通讯**: 用户间的聊天消息通过 WebRTC (PeerJS) 直接在客户端之间传输，不经过中心服务器。
+- **🤖 AI 智能助手**: 集成了 **DeepSeek** 大语言模型，为用户提供一个可以随时对话、获取信息的智能伙伴。
 - **😉 发送表情符号**: 在聊天中轻松选择并发送 Emoji，丰富表达方式。
 - **ℹ️ 查看好友资料**: 在聊天界面方便地查看好友的公开个人信息。
 - **🎨 个性化设置与资料管理**: 用户可以随时更改邮箱、密码，上传和更换个人头像，并编辑个人资料（如性别、年龄、个人简介）。
@@ -62,6 +63,7 @@
   - **框架**: Python, Flask
   - **实时通信**: Flask-SocketIO
   - **数据库**: SQLite3
+  - **AI模型**: DeepSeek API
 - **前端**:
   - **框架**: Vue.js 3 (Options API)
   - **P2P通信**: PeerJS
@@ -73,34 +75,40 @@
 ## 🏗️ 项目代码结构
 ```
 EasyChat/
-├── backend/            # 后端 Flask 应用
-│   ├── app/            # 应用核心代码包
-│   │   ├── api/        # RESTful API 蓝图
-│   │   ├── __init__.py # 应用工厂函数
-│   │   ├── models.py   # SQLAlchemy 数据库模型
-│   │   └── socket_events.py # Socket.IO 事件处理器
-│   ├── migrations/     # 数据库迁移脚本
-│   ├── venv/           # Python 虚拟环境
-│   ├── config.py       # 配置文件
-│   ├── requirements.txt# Python 依赖
-│   └── run.py          # 应用启动脚本
+├── backend/                  # 后端 Flask 应用
+│   ├── app/                  # 应用核心代码包
+│   │   ├── api/              # RESTful API 蓝图
+│   │   ├── __init__.py       # 应用工厂函数
+│   │   ├── models.py         # SQLAlchemy 数据库模型
+│   │   └── socket_events.py  # Socket.IO 事件处理器
+│   ├── migrations/           # 数据库迁移脚本
+│   ├── venv/                 # Python 虚拟环境
+│   ├── config.py             # 配置文件
+│   ├── requirements.txt      # Python 依赖
+│   └── run.py                # 应用启动脚本
 │
-├── frontend/           # 前端 Vue.js 应用
-│   ├── public/         # 公共文件 (如 index.html)
-│   ├── src/            # 前端源码
-│   │   ├── assets/     # 静态资源 (图片等)
-│   │   ├── router/     # 路由配置
-│   │   ├── services/   # API, Socket, PeerJS 服务封装
-│   │   ├── utils/      # 工具函数 (加密、隐写)
-│   │   ├── views/      # 页面级组件 (LoginView, ChatView 等)
-│   │   ├── App.vue     # 根组件
-│   │   └── main.js     # 应用入口
-│   ├── package.json    # npm 依赖和脚本
-│   └── vue.config.js   # Vue CLI 配置文件
+├── frontend/                 # 前端 Vue.js 应用
+│   ├── public/               # 公共文件 (如 index.html)
+│   ├── src/                  # 前端源码
+│   │   ├── assets/           # 静态资源 (图片、头像等)
+│   │   ├── components/       # 可复用组件 (当前项目暂无)
+│   │   ├── router/           # 路由配置
+│   │   ├── services/         # 服务层封装
+│   │   │   ├── api.js        # 后端API接口调用
+│   │   │   ├── ai.js         # AI助手(DeepSeek)接口调用
+│   │   │   ├── peer.js       # PeerJS (P2P) 服务
+│   │   │   └── socket.js     # Socket.IO 服务
+│   │   ├── utils/            # 工具函数 (加密、隐写)
+│   │   ├── views/            # 页面级组件 (LoginView, ChatView 等)
+│   │   ├── App.vue           # 根组件
+│   │   └── main.js           # 应用入口
+│   ├── .env.local            # 本地环境变量 (用于存放API密钥)
+│   ├── package.json          # npm 依赖和脚本
+│   └── vue.config.js         # Vue CLI 配置文件
 │
-├── img/                # README 文档中使用的图片
-├── BACKEND_API_GUIDE.md# 后端 API 详细文档
-└── README.md           # 项目说明文档
+├── img/                      # README 文档中使用的图片
+├── BACKEND_API_GUIDE.md      # 后端 API 详细文档
+└── README.md                 # 项目说明文档
 ```
 
 ## 🚀 安装与运行
@@ -182,6 +190,7 @@ npm run serve
 - **[Flask](https://flask.palletsprojects.com/)**: 轻量而强大的后端 Web 框架。
 - **[Flask-SocketIO](https://flask-socketio.readthedocs.io/)**: 为应用提供了实时、双向的通信能力。
 - **[PeerJS](https://peerjs.com/)**: 极大地简化了 WebRTC 的实现，使得P2P通信成为可能。
+- **[DeepSeek](https://www.deepseek.com/)**: 为项目提供了强大的AI对话能力。
 
 同时，也要感谢所有为这些项目以及我们所依赖的其他无数开源库做出贡献的开发者们。你们的工作是巨人肩膀，让我们看得更远。
 

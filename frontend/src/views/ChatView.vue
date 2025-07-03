@@ -428,7 +428,7 @@ export default {
             content: msg.message
         }));
         
-        const apiMessages = [{ role: 'system', content: 'You are a helpful assistant.' }, ...messageHistory];
+        const apiMessages = [{ role: 'system', content: 'You are a helpful assistant. Please provide your responses in plain text only, without using any Markdown formatting.' }, ...messageHistory];
 
         // Call AI service and add response to UI
         const aiReply = await getAiReply(apiMessages);
