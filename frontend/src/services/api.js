@@ -65,6 +65,13 @@ export default {
   getUserProfile(username) {
     return apiClient.get(`/users/${username}/profile`);
   },
+  uploadAvatar(formData) {
+    return apiClient.post('/user/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+  },
   // Admin functions
   adminGetAllUsers() {
     return apiClient.get('/admin/users');

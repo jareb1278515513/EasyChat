@@ -62,6 +62,18 @@
         </form>
       </div>
 
+      <div class="settings-section">
+        <h3>设置头像</h3>
+        <div class="avatar-uploader">
+          <img :src="avatarPreview" alt="当前头像" class="current-avatar bordered-and-shadowed">
+          <input type="file" @change="onFileSelected" accept="image/*" ref="fileInput" style="display: none;">
+          <div class="avatar-actions">
+            <button @click="$refs.fileInput.click()" class="select-btn">选择图片</button>
+            <button @click="uploadAvatar" :disabled="!selectedFile" class="upload-btn">上传头像</button>
+          </div>
+        </div>
+      </div>
+
       <button @click="goBack" class="back-btn">返回</button>
     </div>
   </div>
@@ -69,6 +81,8 @@
 
 <script>
 import api from '@/services/api';
+
+const DEFAULT_AVATAR = require('@/assets/logo.png'); 
 
 export default {
   name: 'SettingsView',
@@ -83,8 +97,11 @@ export default {
       profile: {
         gender: '',
         age: null,
-        bio: ''
-      }
+        bio: '',
+        avatar_url: ''
+      },
+      selectedFile: null,
+      avatarPreview: DEFAULT_AVATAR
     };
   },
   computed: {
@@ -116,6 +133,10 @@ export default {
           this.profile.gender = data.gender || '';
           this.profile.age = data.age;
           this.profile.bio = data.bio || '';
+          this.profile.avatar_url = data.avatar_url;
+          if (data.avatar_url) {
+            this.avatarPreview = data.avatar_url;
+          }
         }
       } catch (error) {
         console.error('获取用户资料失败:', error);
@@ -189,6 +210,28 @@ export default {
         alert('个人资料更新成功！');
       } catch (error) {
         alert('个人资料更新失败：' + (error.response?.data?.error || '未知错误'));
+      }
+    },
+    onFileSelected(event) {
+      const file = event.target.files[0];
+      if (file) {
+        this.selectedFile = file;
+        this.avatarPreview = URL.createObjectURL(file);
+      }
+    },
+    async uploadAvatar() {
+      if (!this.selectedFile) return;
+      const formData = new FormData();
+      formData.append('avatar', this.selectedFile);
+
+      try {
+        const { data } = await api.uploadAvatar(formData);
+        this.profile.avatar_url = data.avatar_url;
+        this.avatarPreview = data.avatar_url; // 更新预览
+        this.selectedFile = null; // 重置选择
+        alert('头像上传成功！');
+      } catch (error) {
+        alert('头像上传失败：' + (error.response?.data?.error || '未知错误'));
       }
     },
     goBack() {
@@ -365,6 +408,37 @@ button[type="submit"] {
   font-size: 0.8rem;
   font-weight: bold;
   mix-blend-mode: difference;
+  color: white;
+}
+
+/* Avatar Uploader Styles */
+.avatar-uploader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.current-avatar {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 4px solid var(--main-color);
+}
+
+.avatar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.avatar-actions .select-btn {
+  background-color: var(--input-focus);
+  color: white;
+}
+
+.avatar-actions .upload-btn {
+  background-color: var(--success-color);
   color: white;
 }
 </style> 

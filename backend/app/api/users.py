@@ -1,10 +1,18 @@
-from flask import request, jsonify, current_app, g
+from flask import request, jsonify, current_app, g, url_for
 from app.api import bp
 from app.models import User
 from app import db
 import jwt
 from datetime import datetime, timedelta, timezone
 from app.api.auth import token_required
+import os
+from werkzeug.utils import secure_filename
+
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+def allowed_file(filename):
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # 检查服务器是否运行
 @bp.route('/ping')
@@ -34,6 +42,10 @@ def register():
     # 检查必填字段
     if not username or not email or not password:
         return jsonify({'error': 'Missing username, email, or password'}), 400
+
+    # 检查用户名长度
+    if len(username) > 15:
+        return jsonify({'error': 'Username cannot exceed 15 characters'}), 400
 
     # 检查用户名是否已存在
     if User.query.filter_by(username=username).first():
@@ -183,7 +195,8 @@ def get_user_profile(username):
         'is_online': user.is_online,
         'gender': user.gender,
         'age': user.age,
-        'bio': user.bio
+        'bio': user.bio,
+        'avatar_url': url_for('static', filename=user.avatar_url, _external=True) if user.avatar_url else None
     })
 
 @bp.route('/user/profile', methods=['PUT'])
@@ -202,3 +215,41 @@ def update_profile():
 
     db.session.commit()
     return jsonify({'message': 'Profile updated successfully'}), 200
+
+@bp.route('/user/avatar', methods=['POST'])
+@token_required
+def upload_avatar():
+    """上传用户头像"""
+    if 'avatar' not in request.files:
+        return jsonify({'error': '没有文件部分'}), 400
+    file = request.files['avatar']
+    if not file or not file.filename:
+        return jsonify({'error': '未选择文件'}), 400
+        
+    if file and allowed_file(file.filename):
+        user = g.current_user
+        # 使用 secure_filename 保证文件名安全，并结合用户ID确保唯一性
+        original_ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = secure_filename(f"user_{user.id}.{original_ext}")
+        
+        static_folder = current_app.static_folder
+        if not static_folder:
+            return jsonify({'error': 'Static folder not configured'}), 500
+
+        avatar_dir = os.path.join(static_folder, 'avatars')
+        os.makedirs(avatar_dir, exist_ok=True)
+        
+        full_path = os.path.join(avatar_dir, filename)
+        file.save(full_path)
+
+        # 数据库中只保存相对于 static/avatars 的文件名
+        db_avatar_path = f"avatars/{filename}"
+        user.avatar_url = db_avatar_path
+        db.session.commit()
+
+        return jsonify({
+            'message': '头像更新成功',
+            'avatar_url': url_for('static', filename=db_avatar_path, _external=True)
+        }), 200
+    else:
+        return jsonify({'error': '文件类型不被允许'}), 400

@@ -1,4 +1,4 @@
-from flask import jsonify, g, request
+from flask import jsonify, g, request, url_for
 from app.api import bp
 from app.api.auth import token_required
 from app.models import User, FriendRequest
@@ -21,7 +21,8 @@ def get_friends():
         'username': friend.username,
         'is_online': friend.is_online,
         'ip_address': friend.ip_address,
-        'port': friend.port
+        'port': friend.port,
+        'avatar_url': url_for('static', filename=friend.avatar_url, _external=True) if friend.avatar_url else None
     } for friend in friends])
 
 @bp.route('/friend-requests', methods=['POST'])

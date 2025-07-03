@@ -46,6 +46,7 @@ class User(db.Model):
     gender = db.Column(db.String(10), nullable=True)  # 性别
     age = db.Column(db.Integer, nullable=True)  # 年龄
     bio = db.Column(db.String(200), nullable=True) # 个人简介
+    avatar_url = db.Column(db.String(255), nullable=True) # 头像URL
 
     # 好友关系(多对多)
     friends = db.relationship('User',

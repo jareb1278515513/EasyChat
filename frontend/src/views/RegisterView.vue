@@ -4,7 +4,10 @@
       <div class="title">创建您的账户
         <span>开启安全通讯之旅</span>
       </div>
-      <input class="input" type="text" v-model="username" placeholder="用户名" required>
+      <div class="input-group">
+        <input class="input" type="text" v-model="username" @input="validateUsername" placeholder="用户名" required>
+        <p v-if="usernameError" class="error-text">{{ usernameError }}</p>
+      </div>
       
       <div class="input-group">
         <input class="input" type="email" v-model="email" @input="validateEmail" placeholder="邮箱" required>
@@ -38,6 +41,7 @@ export default {
       email: '',
       password: '',
       emailError: '',
+      usernameError: '',
       passwordStrength: 0,
     };
   },
@@ -55,10 +59,17 @@ export default {
       };
     },
     isFormValid() {
-      return this.email && !this.emailError && this.passwordStrength >= 3;
+      return this.username && !this.usernameError && this.email && !this.emailError && this.passwordStrength >= 3;
     }
   },
   methods: {
+    validateUsername() {
+      if (this.username.length > 15) {
+        this.usernameError = '用户名不能超过15个字符';
+      } else {
+        this.usernameError = '';
+      }
+    },
     validateEmail() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!this.email) {
@@ -86,7 +97,8 @@ export default {
       this.passwordStrength = score > 5 ? 5 : score;
     },
     async handleRegister() {
-      this.validateEmail(); // Final check on submit
+      this.validateEmail();
+      this.validateUsername();
       if (!this.isFormValid) {
         alert('请检查表单输入，确保邮箱格式正确且密码强度足够。');
         return;

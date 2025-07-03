@@ -2,6 +2,7 @@
   <div class="chat-container">
     <div class="sidebar">
       <div class="current-user-info">
+        <img :src="currentUserAvatar || defaultAvatar" alt="My Avatar" class="avatar">
         <h4>{{ currentUser }}</h4>
       </div>
       
@@ -10,7 +11,7 @@
         <h4>好友请求</h4>
         <ul>
           <li v-for="req in friendRequests" :key="req.id" class="friend-request-item">
-            <span>{{ req.requester_username }}</span>
+            <span class="requester-name" @click="showFriendProfile(req.requester_username)" title="查看对方资料">{{ req.requester_username }}</span>
             <div class="actions">
               <button @click="respondToRequest(req.id, 'accept')" class="accept-btn">✓</button>
               <button @click="respondToRequest(req.id, 'reject')" class="reject-btn">×</button>
@@ -33,6 +34,7 @@
             @click="selectRecipient(friend.username)"
             :class="{ active: friend.username === currentRecipient }"
             class="bordered-and-shadowed">
+          <img :src="friend.avatar_url || defaultAvatar" alt="Friend Avatar" class="avatar">
           <div class="friend-info">
             {{ friend.username }}
             <span :class="['status-dot', friend.is_online ? 'online' : 'offline']"></span>
@@ -52,17 +54,24 @@
         <button @click="showFriendProfile(currentRecipient)" class="info-btn" title="查看好友信息">ℹ️</button>
       </div>
       <div class="messages-area bordered-and-shadowed">
-        <div v-if="!currentRecipient" class="placeholder-text">选择一位好友开始聊天</div>
-        <div v-else>
-          <div v-for="(msg, index) in messages[currentRecipient]" :key="index" :class="['message', msg.from === currentUser ? 'sent' : 'received']">
-            <strong>{{ msg.from }}:</strong>
-            <template v-if="msg.type === 'steganography_image'">
-              <img :src="msg.imageUrl" alt="隐写图片" class="chat-image" @click="revealMessage(msg.imageUrl)">
-              <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
-            </template>
-            <template v-else>
-              {{ msg.message }}
-            </template>
+        <div v-if="!currentRecipient" class="welcome-message">
+          <p>选择一位好友开始聊天</p>
+        </div>
+        <div v-else class="messages-list">
+          <div v-for="(msg, index) in messages[currentRecipient]" :key="index" :class="['message-wrapper', msg.from === currentUser ? 'sent' : 'received']">
+            <img :src="msg.avatar_url || defaultAvatar" alt="Sender Avatar" class="avatar message-avatar">
+            <div class="message-content">
+              <span class="sender-name">{{ msg.from }}</span>
+              <div :class="['message', msg.from === currentUser ? 'sent-bubble' : 'received-bubble']">
+                <template v-if="msg.type === 'steganography_image'">
+                  <img :src="msg.imageUrl" alt="隐写图片" class="chat-image" @click="revealMessage(msg.imageUrl)">
+                  <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
+                </template>
+                <template v-else>
+                  {{ msg.message }}
+                </template>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -93,7 +102,7 @@
           <p><strong>性别:</strong> {{ friendProfile.gender || '未指定' }}</p>
           <p><strong>年龄:</strong> {{ friendProfile.age || '未指定' }}</p>
           <p><strong>简介:</strong></p>
-          <p class="bio">{{ friendProfile.bio || '暂无简介' }}</p>
+          <p class="bio">{{ friendProfile.bio || '这个人很懒，什么也没留下~' }}</p>
         </div>
         <button @click="closeProfileModal" class="close-modal-btn">关闭</button>
       </div>
@@ -109,6 +118,8 @@ import api from '@/services/api';
 import * as crypto from '@/utils/crypto';
 import * as steganography from '@/utils/steganography';
 import { getPeer, destroyPeer } from '@/services/peer';
+
+const DEFAULT_AVATAR = require('@/assets/logo.png');
 
 // Store for active PeerJS data connections, and symmetric keys for each chat session.
 const dataConnections = {};
@@ -126,6 +137,8 @@ export default {
       newFriendUsername: '',
       statusInterval: null,
       currentUser: '',
+      currentUserAvatar: null,
+      defaultAvatar: DEFAULT_AVATAR,
       selectedImageFile: null,
       imagePreviewUrl: null,
       isAdmin: false,
@@ -135,6 +148,14 @@ export default {
     };
   },
   methods: {
+    async fetchCurrentUserInfo() {
+      try {
+        const { data } = await api.getUserProfile(this.currentUser);
+        this.currentUserAvatar = data.avatar_url;
+      } catch (error) {
+        console.error("无法获取当前用户信息:", error);
+      }
+    },
     initializePeer() {
       const peer = getPeer();
       if (peer) {
@@ -253,6 +274,8 @@ export default {
     async handleNewP2PMessage(data) {
       const { from, rawMessage } = data;
       const message = typeof rawMessage === 'string' ? JSON.parse(rawMessage) : rawMessage;
+      const sender = this.friends.find(f => f.username === from);
+      const senderAvatar = sender ? sender.avatar_url : null;
 
       if (message.type === 'steganography_image') {
         if (!this.messages[from]) this.messages[from] = [];
@@ -260,6 +283,7 @@ export default {
           from,
           type: 'steganography_image',
           imageUrl: message.payload,
+          avatar_url: senderAvatar
         });
         return;
       }
@@ -289,7 +313,7 @@ export default {
           const plaintext = await crypto.decryptSymmetric(symmetricKey, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
 
           if (!this.messages[from]) this.messages[from] = [];
-          this.messages[from].push({ from, message: plaintext });
+          this.messages[from].push({ from, message: plaintext, avatar_url: senderAvatar });
 
           if (from !== this.currentRecipient) {
             const friend = this.friends.find(f => f.username === from);
@@ -324,7 +348,8 @@ export default {
           this.messages[this.currentRecipient].push({
             from: this.currentUser,
             type: 'steganography_image',
-            imageUrl: imageDataUrl
+            imageUrl: imageDataUrl,
+            avatar_url: this.currentUserAvatar
           });
           
           this.clearSelectedImage();
@@ -350,7 +375,7 @@ export default {
           }));
 
           if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
-          this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage });
+          this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage, avatar_url: this.currentUserAvatar });
           this.newMessage = '';
         } catch (error) {
           console.error('发送消息失败:', error);
@@ -488,6 +513,7 @@ export default {
   },
   created() {
     this.currentUser = localStorage.getItem('username') || '用户';
+    this.fetchCurrentUserInfo();
     this.checkIfAdmin();
     this.initializePeer();
     this.fetchFriends();
@@ -556,6 +582,13 @@ export default {
   gap: 20px;
 }
 
+.current-user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 0 10px;
+}
+
 .current-user-info h4, .friends-header h3, .friend-requests h4 {
   font-size: 22px;
   font-weight: 900;
@@ -587,10 +620,33 @@ export default {
   padding: 0;
   margin: 0;
   overflow-y: auto;
+  overflow-x: hidden; /* 防止水平溢出 */
   flex-grow: 1;
   display: flex;
   flex-direction: column;
   gap: 10px;
+}
+
+.friend-request-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+}
+
+.requester-name {
+  cursor: pointer;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.requester-name:hover {
+  color: var(--input-focus, #2d8cf0);
+}
+
+.friend-request-item .actions {
+  display: flex;
+  gap: 8px; /* 为接受/拒绝按钮之间增加间距 */
 }
 
 .friends-list li {
@@ -630,23 +686,84 @@ export default {
   flex-grow: 1;
   padding: 20px;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.welcome-message {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  text-align: center;
+}
+
+.welcome-message p {
+  font-size: 1.5rem;
+  color: #777;
+  font-weight: 300;
+}
+
+.messages-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.message-wrapper {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 15px;
+  max-width: 85%;
+}
+
+.message-wrapper.sent {
+  align-self: flex-end;
+  flex-direction: row-reverse;
+}
+
+.message-wrapper.received {
+  align-self: flex-start;
+}
+
+.message-avatar {
+  width: 35px;
+  height: 35px;
+  margin: 0 10px;
+  flex-shrink: 0; /* 防止头像被压缩 */
+}
+
+.message-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.sender-name {
+  font-size: 0.8rem;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.message-wrapper.sent .sender-name {
+  align-self: flex-end;
+}
+
+.message-wrapper.received .sender-name {
+  align-self: flex-start;
 }
 
 .message {
   padding: 10px 15px;
-  margin-bottom: 15px;
-  max-width: 80%;
-  width: fit-content;
+  max-width: fit-content;
+  border-radius: 15px; /* 更圆润的聊天气泡 */
 }
-.message.sent {
-  margin-left: auto;
-  background-color: #dcf8c6; /* A WhatsApp-like green for sent messages */
+.sent-bubble {
+  background-color: #dcf8c6;
+  border-top-right-radius: 0;
 }
-.message.received {
-  margin-right: auto;
+.received-bubble {
   background-color: white;
+  border-top-left-radius: 0;
 }
-
 
 /* 通用输入框和按钮样式 */
 input[type="text"] {
@@ -848,6 +965,16 @@ button:active {
   color: white;
   border-radius: 20px;
   cursor: pointer;
+}
+
+/* Avatar Styles */
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--main-color);
+  margin-right: 10px; /* 为头像右侧增加间距 */
 }
 
 </style> 
