@@ -63,13 +63,13 @@
             <div class="message-content">
               <span class="sender-name">{{ msg.from }}</span>
               <div :class="['message', msg.from === currentUser ? 'sent-bubble' : 'received-bubble']">
-                <template v-if="msg.type === 'steganography_image'">
+            <template v-if="msg.type === 'steganography_image'">
                   <img :src="msg.imageUrl" alt="隐写图片" class="chat-image" @click="revealMessage(msg.imageUrl)">
-                  <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
-                </template>
-                <template v-else>
-                  {{ msg.message }}
-                </template>
+              <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
+            </template>
+            <template v-else>
+              {{ msg.message }}
+            </template>
               </div>
             </div>
           </div>
