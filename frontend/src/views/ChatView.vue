@@ -1,5 +1,5 @@
 <template>
-  <div class="chat-container">
+  <div class="chat-container" :data-theme="theme">
     <div class="sidebar">
       <div class="current-user-info">
         <img :src="currentUserAvatar || defaultAvatar" alt="My Avatar" class="avatar">
@@ -45,7 +45,10 @@
       </ul>
 
       <button v-if="isAdmin" @click="goToAdmin" class="admin-button">管理面板</button>
-      <button @click="goToSettings" class="settings-button">设置</button>
+      <div class="sidebar-buttons">
+        <button @click="goToSettings" class="settings-button">设置</button>
+        <button @click="toggleTheme" class="theme-toggle-button">主题</button>
+      </div>
       <button @click="logout" class="logout-button">登出</button>
     </div>
     <div class="chat-window">
@@ -53,7 +56,7 @@
         <span>正在与 <strong>{{ currentRecipient }}</strong> 聊天</span>
         <button @click="showFriendProfile(currentRecipient)" class="info-btn" title="查看好友信息">ℹ️</button>
       </div>
-      <div class="messages-area bordered-and-shadowed">
+      <div class="messages-area bordered-and-shadowed" ref="messagesArea">
         <div v-if="!currentRecipient" class="welcome-message">
           <p>选择一位好友开始聊天</p>
         </div>
@@ -61,11 +64,22 @@
           <div v-for="(msg, index) in messages[currentRecipient]" :key="index" :class="['message-wrapper', msg.from === currentUser ? 'sent' : 'received']">
             <img :src="msg.avatar_url || defaultAvatar" alt="Sender Avatar" class="avatar message-avatar">
             <div class="message-content">
-              <span class="sender-name">{{ msg.from }}</span>
+              <div class="message-header">
+                <span class="sender-name">{{ msg.from }}</span>
+                <span class="message-timestamp">{{ formatTimestamp(msg.timestamp) }}</span>
+              </div>
               <div :class="['message', msg.from === currentUser ? 'sent-bubble' : 'received-bubble']">
             <template v-if="msg.type === 'steganography_image'">
                   <img :src="msg.imageUrl" alt="隐写图片" class="chat-image" @click="revealMessage(msg.imageUrl)">
               <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
+            </template>
+            <template v-else-if="msg.type === 'image'">
+                <img :src="msg.url" alt="聊天图片" class="chat-image">
+            </template>
+            <template v-else-if="msg.type === 'file'">
+                <a :href="msg.url" :download="msg.filename" class="file-link">
+                    📎 {{ msg.filename }}
+                </a>
             </template>
             <template v-else>
               {{ msg.message }}
@@ -75,13 +89,20 @@
           </div>
         </div>
       </div>
+      <div class="typing-indicator-container">
+        <span v-if="typingUsers[currentRecipient]" class="typing-indicator">对方正在输入...</span>
+      </div>
       <div class="message-input" v-if="currentRecipient">
         <div v-if="selectedImageFile" class="image-preview">
           <img :src="imagePreviewUrl" alt="预览">
           <button @click="clearSelectedImage" class="clear-preview-btn">×</button>
         </div>
-        <input type="file" ref="imageInput" @change="handleImageSelected" accept="image/*" style="display: none;">
-        <button @click="triggerImageUpload" class="upload-btn" title="发送图片">🖼️</button>
+        <div v-else-if="selectedFile && !selectedFileIsImage" class="file-preview">
+          <span>已选择文件: {{ selectedFile.name }}</span>
+          <button @click="clearSelectedImage" class="clear-preview-btn">×</button>
+        </div>
+        <input type="file" ref="imageInput" @change="handleImageSelected" style="display: none;">
+        <button @click="triggerImageUpload" class="upload-btn" title="发送文件或图片">📎</button>
         
         <!-- Emoji Picker Button and Component -->
         <div class="emoji-picker-container">
@@ -89,7 +110,7 @@
           <emoji-picker v-if="showEmojiPicker" @emoji-click="onEmojiClick" class="emoji-picker"></emoji-picker>
         </div>
         
-        <input type="text" v-model="newMessage" @keyup.enter="sendMessage" :placeholder="imagePreviewUrl ? '输入要隐藏在图片中的消息...' : '输入消息...'" class="bordered-and-shadowed">
+        <input type="text" v-model="newMessage" @keyup.enter="sendMessage" @input="handleTyping" :placeholder="imagePreviewUrl ? '输入要隐藏在图片中的消息...' : '输入消息...'" class="bordered-and-shadowed">
         <button @click="sendMessage">发送</button>
       </div>
     </div>
@@ -151,15 +172,51 @@ export default {
       currentUser: '',
       currentUserAvatar: null,
       defaultAvatar: DEFAULT_AVATAR,
-      selectedImageFile: null,
+      selectedImageFile: null, // Legacy for image logic, to be refactored to selectedFile
       imagePreviewUrl: null,
+      selectedFile: null,
+      selectedFileIsImage: false,
       isAdmin: false,
       showEmojiPicker: false, // 控制 emoji 选择器的显示状态
       showProfileModal: false, // 控制好友资料模态框的显示
-      friendProfile: null // 存储正在查看的好友资料
+      friendProfile: null, // 存储正在查看的好友资料
+      typingTimers: {},
+      typingUsers: {},
+      theme: 'light' // Can be 'light' or 'dark'
     };
   },
   methods: {
+    // --- Local Storage Persistence ---
+    saveMessages(recipient) {
+      if (!recipient) return;
+      // We create a unique key for each chat pair involving the current user
+      const key = `chat_history_${this.currentUser}_${recipient}`;
+      try {
+        localStorage.setItem(key, JSON.stringify(this.messages[recipient]));
+      } catch (e) {
+        console.error("无法将消息保存到本地存储:", e);
+        // Here, a more robust solution could be implemented, like trimming old messages
+        // if the storage is full (e.g., QuotaExceededError).
+      }
+    },
+    loadMessages(recipient) {
+      const key = `chat_history_${this.currentUser}_${recipient}`;
+      const savedMessages = localStorage.getItem(key);
+      if (savedMessages) {
+        try {
+          this.messages[recipient] = JSON.parse(savedMessages);
+        } catch (e) {
+          console.error("无法解析已保存的消息:", e);
+          this.messages[recipient] = [];
+        }
+      } else {
+        // No saved messages found, initialize an empty array.
+        if (!this.messages[recipient]) {
+          this.messages[recipient] = [];
+        }
+      }
+    },
+    
     async fetchCurrentUserInfo() {
       try {
         const { data } = await api.getUserProfile(this.currentUser);
@@ -201,19 +258,32 @@ export default {
     },
     // --- PeerJS Connection Management ---
     selectRecipient(username) {
-      this.currentRecipient = username;
-      if (!this.messages[username]) {
-        this.messages[username] = [];
-        // First time talking to AI, add a welcome message.
-        if (username === AI_ASSISTANT.username) {
-            this.messages[username].push({
-                from: AI_ASSISTANT.username,
-                message: '你好！我是你的 DeepSeek 智能助手，有什么可以帮助你的吗？',
-                avatar_url: AI_ASSISTANT.avatar_url,
-                type: 'chat_message'
-            });
+      const previousRecipient = this.currentRecipient;
+      if (previousRecipient && this.typingTimers[previousRecipient]) {
+        clearTimeout(this.typingTimers[previousRecipient]);
+        const conn = dataConnections[previousRecipient];
+        if (conn && conn.open) {
+            conn.send(JSON.stringify({ type: 'typing_indicator', status: 'stop' }));
         }
+        delete this.typingTimers[previousRecipient];
       }
+      this.currentRecipient = username;
+      
+      this.loadMessages(username);
+      this.scrollToBottom();
+
+      // First time talking to AI, add a welcome message if none exists.
+      if (username === AI_ASSISTANT.username && (!this.messages[username] || this.messages[username].length === 0)) {
+          this.messages[username].push({
+              from: AI_ASSISTANT.username,
+              message: '你好！我是你的 DeepSeek 智能助手，有什么可以帮助你的吗？',
+              avatar_url: AI_ASSISTANT.avatar_url,
+              type: 'chat_message',
+              timestamp: Date.now()
+          });
+          this.scrollToBottom();
+      }
+
       const friend = this.friends.find(f => f.username === username);
       if (friend) {
         friend.hasNewMessages = false;
@@ -353,6 +423,11 @@ export default {
         return;
       }
 
+      if (message.type === 'typing_indicator') {
+        this.typingUsers[recipientUsername] = message.status === 'start';
+        return;
+      }
+
       const key = symmetricKeys[recipientUsername];
       if (!key) {
         console.warn(`收到来自 ${recipientUsername} 的消息，但没有对称密钥。忽略此消息。`);
@@ -365,14 +440,19 @@ export default {
           from: recipientUsername,
           type: 'steganography_image',
           imageUrl: message.payload,
-          avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar
+          avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar,
+          timestamp: Date.now()
         });
+        this.saveMessages(recipientUsername); // Save after receiving image
         
         if (this.currentRecipient !== recipientUsername) {
           const friend = this.friends.find(f => f.username === recipientUsername);
           if (friend) {
             friend.hasNewMessages = true;
           }
+        }
+        if (recipientUsername === this.currentRecipient) {
+            this.scrollToBottom();
         }
         return;
       }
@@ -382,22 +462,49 @@ export default {
           const { iv, ciphertext } = message;
           const plaintext = await crypto.decryptSymmetric(key, new Uint8Array(ciphertext).buffer, new Uint8Array(iv));
           
-          const messageToStore = {
-            from: recipientUsername,
-            message: plaintext,
-            avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar,
-          };
+          let decryptedMessage;
+          try {
+            decryptedMessage = JSON.parse(plaintext);
+          } catch (e) {
+            // It's a plain text message
+            decryptedMessage = { type: 'text', content: plaintext };
+          }
+          
+          let messageToStore;
+
+          if (decryptedMessage.type === 'file_transfer') {
+              const fileData = decryptedMessage.payload;
+              messageToStore = {
+                from: recipientUsername,
+                type: fileData.type, // 'image' or 'file'
+                url: fileData.dataUrl,
+                filename: fileData.name,
+                avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar,
+                timestamp: Date.now(),
+              };
+          } else { // Plain text message
+            messageToStore = {
+              from: recipientUsername,
+              message: decryptedMessage.content,
+              avatar_url: this.friends.find(f => f.username === recipientUsername)?.avatar_url || this.defaultAvatar,
+              timestamp: Date.now()
+            };
+          }
 
           if (!this.messages[recipientUsername]) {
             this.messages[recipientUsername] = [];
           }
           this.messages[recipientUsername].push(messageToStore);
+          this.saveMessages(recipientUsername); // Save after receiving message
 
           if (this.currentRecipient !== recipientUsername) {
             const friend = this.friends.find(f => f.username === recipientUsername);
             if (friend) {
               friend.hasNewMessages = true;
             }
+          }
+          if (recipientUsername === this.currentRecipient) {
+            this.scrollToBottom();
           }
         } catch (error) {
           console.error(`解密来自 ${recipientUsername} 的消息时出错:`, error);
@@ -407,7 +514,16 @@ export default {
 
     // --- Message Sending ---
     async sendMessage() {
-      if (!this.newMessage.trim() && !this.selectedImageFile) return;
+      if (this.currentRecipient && this.typingTimers[this.currentRecipient]) {
+        clearTimeout(this.typingTimers[this.currentRecipient]);
+        delete this.typingTimers[this.currentRecipient];
+        const conn = dataConnections[this.currentRecipient];
+        if (conn && conn.open) {
+          conn.send(JSON.stringify({ type: 'typing_indicator', status: 'stop' }));
+        }
+      }
+
+      if (!this.newMessage.trim() && !this.selectedFile) return;
       if (!this.currentRecipient) return;
       
       if (this.currentRecipient === AI_ASSISTANT.username) {
@@ -418,7 +534,8 @@ export default {
         if (!this.messages[AI_ASSISTANT.username]) {
           this.messages[AI_ASSISTANT.username] = [];
         }
-        this.messages[AI_ASSISTANT.username].push({ from: this.currentUser, message: userMessageContent, avatar_url: this.currentUserAvatar });
+        this.messages[AI_ASSISTANT.username].push({ from: this.currentUser, message: userMessageContent, avatar_url: this.currentUserAvatar, timestamp: Date.now() });
+        this.saveMessages(AI_ASSISTANT.username); // Save user message to AI
 
         // Prepare message history for API, filtering out non-chat messages
         const messageHistory = this.messages[AI_ASSISTANT.username]
@@ -432,44 +549,104 @@ export default {
 
         // Call AI service and add response to UI
         const aiReply = await getAiReply(apiMessages);
-        this.messages[AI_ASSISTANT.username].push({ from: AI_ASSISTANT.username, message: aiReply, avatar_url: AI_ASSISTANT.avatar_url });
+        this.messages[AI_ASSISTANT.username].push({ from: AI_ASSISTANT.username, message: aiReply, avatar_url: AI_ASSISTANT.avatar_url, timestamp: Date.now() });
+        this.saveMessages(AI_ASSISTANT.username); // Save AI response
+        this.scrollToBottom();
 
         return;
       }
 
-      if (this.selectedImageFile) {
+      if (this.selectedFile) {
+        // Steganography case: image is selected AND there's a message to hide
+        if (this.selectedFileIsImage && this.newMessage.trim()) {
+            const conn = dataConnections[this.currentRecipient];
+            if (!conn || !conn.open) {
+              alert('无法发送图片：安全连接尚未建立。');
+              return;
+            }
+            try {
+              const imageDataUrl = await steganography.hideMessage(this.selectedFile, this.newMessage);
+              
+              conn.send(JSON.stringify({
+                type: 'steganography_image',
+                payload: imageDataUrl
+              }));
+
+              if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
+              this.messages[this.currentRecipient].push({
+                from: this.currentUser,
+                type: 'steganography_image',
+                imageUrl: imageDataUrl,
+                avatar_url: this.currentUserAvatar,
+                timestamp: Date.now()
+              });
+              this.saveMessages(this.currentRecipient);
+              this.scrollToBottom();
+              
+              this.clearSelectedImage();
+              this.newMessage = '';
+
+            } catch (error) {
+              console.error('信息隐藏或发送失败:', error);
+              alert('发送图片失败：' + error.message);
+            }
+            return;
+        }
+
+        // Direct file/image transfer case
         const conn = dataConnections[this.currentRecipient];
-        if (!conn || !conn.open) {
-          alert('无法发送图片：安全连接尚未建立。');
-          return;
+        const key = symmetricKeys[this.currentRecipient];
+        if (!conn || !conn.open || !key) {
+            alert('无法发送文件：安全连接尚未建立。');
+            return;
         }
-        try {
-          const imageDataUrl = await steganography.hideMessage(this.selectedImageFile, this.newMessage);
-          
-          conn.send(JSON.stringify({
-            type: 'steganography_image',
-            payload: imageDataUrl
-          }));
 
-          if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
-          this.messages[this.currentRecipient].push({
-            from: this.currentUser,
-            type: 'steganography_image',
-            imageUrl: imageDataUrl,
-            avatar_url: this.currentUserAvatar
-          });
-          
-          this.clearSelectedImage();
-          this.newMessage = '';
+        const file = this.selectedFile;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const messageType = file.type.startsWith('image/') ? 'image' : 'file';
+                const messagePayload = {
+                    type: 'file_transfer',
+                    payload: {
+                        type: messageType,
+                        dataUrl: e.target.result,
+                        name: file.name
+                    }
+                };
+                
+                const { iv, ciphertext } = await crypto.encryptSymmetric(key, JSON.stringify(messagePayload));
 
-        } catch (error) {
-          console.error('信息隐藏或发送失败:', error);
-          alert('发送图片失败：' + error.message);
-        }
+                conn.send(JSON.stringify({
+                    type: 'chat_message', // Use chat_message type to leverage E2EE
+                    iv: Array.from(iv),
+                    ciphertext: Array.from(new Uint8Array(ciphertext))
+                }));
+
+                // Add to local UI
+                if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
+                this.messages[this.currentRecipient].push({
+                    from: this.currentUser,
+                    type: messageType,
+                    url: e.target.result,
+                    filename: file.name,
+                    avatar_url: this.currentUserAvatar,
+                    timestamp: Date.now()
+                });
+                this.saveMessages(this.currentRecipient);
+                this.scrollToBottom();
+                this.clearSelectedImage();
+
+            } catch (error) {
+                console.error("文件加密或发送失败:", error);
+                alert("发送文件失败。");
+            }
+        };
+        reader.readAsDataURL(file);
         return;
       }
       
-      // Standard P2P message sending
+      // Standard P2P text message sending
       const conn = dataConnections[this.currentRecipient];
       if (conn && conn.open) {
         const key = symmetricKeys[this.currentRecipient];
@@ -478,7 +655,9 @@ export default {
           return;
         }
         try {
-          const { iv, ciphertext } = await crypto.encryptSymmetric(key, this.newMessage);
+          // Encapsulate plain text in the new message structure
+          const plaintext = JSON.stringify({ type: 'text', content: this.newMessage });
+          const { iv, ciphertext } = await crypto.encryptSymmetric(key, plaintext);
           
           conn.send(JSON.stringify({
             type: 'chat_message',
@@ -487,7 +666,9 @@ export default {
           }));
 
           if (!this.messages[this.currentRecipient]) this.messages[this.currentRecipient] = [];
-          this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage, avatar_url: this.currentUserAvatar });
+          this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage, avatar_url: this.currentUserAvatar, timestamp: Date.now() });
+          this.saveMessages(this.currentRecipient); // Save sent text message
+          this.scrollToBottom();
           this.newMessage = '';
         } catch (error) {
           console.error('发送消息失败:', error);
@@ -495,6 +676,27 @@ export default {
         }
       } else {
         alert('安全连接尚未建立，无法发送消息。');
+      }
+    },
+
+    handleTyping() {
+      const recipient = this.currentRecipient;
+      if (!recipient || recipient === AI_ASSISTANT.username) return;
+
+      const conn = dataConnections[recipient];
+      if (conn && conn.open) {
+        if (!this.typingTimers[recipient]) {
+          conn.send(JSON.stringify({ type: 'typing_indicator', status: 'start' }));
+        }
+
+        if (this.typingTimers[recipient]) {
+          clearTimeout(this.typingTimers[recipient]);
+        }
+
+        this.typingTimers[recipient] = setTimeout(() => {
+          conn.send(JSON.stringify({ type: 'typing_indicator', status: 'stop' }));
+          delete this.typingTimers[recipient];
+        }, 1500);
       }
     },
 
@@ -585,9 +787,15 @@ export default {
 
     handleImageSelected(event) {
       const file = event.target.files[0];
+      this.selectedFile = file; // Centralize file selection
       if (file && file.type.startsWith('image/')) {
-        this.selectedImageFile = file;
+        this.selectedFileIsImage = true;
+        this.selectedImageFile = file; // Keep for legacy preview logic
         this.imagePreviewUrl = URL.createObjectURL(file);
+      } else if (file) {
+        this.selectedFileIsImage = false;
+        this.selectedImageFile = null;
+        this.imagePreviewUrl = null;
       } else {
         this.clearSelectedImage();
       }
@@ -595,11 +803,15 @@ export default {
 
     clearSelectedImage() {
       this.selectedImageFile = null;
+      this.selectedFile = null;
+      this.selectedFileIsImage = false;
       if (this.imagePreviewUrl) {
         URL.revokeObjectURL(this.imagePreviewUrl);
       }
       this.imagePreviewUrl = null;
-      this.$refs.imageInput.value = ''; // Reset file input
+      if (this.$refs.imageInput) {
+        this.$refs.imageInput.value = ''; // Reset file input
+      }
     },
     
     async revealMessage(imageUrl) {
@@ -642,8 +854,34 @@ export default {
       this.showProfileModal = false;
       this.friendProfile = null;
     },
+    formatTimestamp(ts) {
+      if (!ts) return '';
+      const date = new Date(ts);
+      const hours = date.getHours().toString().padStart(2, '0');
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      return `${hours}:${minutes}`;
+    },
+    toggleTheme() {
+        this.theme = this.theme === 'light' ? 'dark' : 'light';
+        localStorage.setItem('chat_theme', this.theme);
+    },
+    loadTheme() {
+        const savedTheme = localStorage.getItem('chat_theme');
+        if (savedTheme) {
+            this.theme = savedTheme;
+        }
+    },
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const el = this.$refs.messagesArea;
+        if (el) {
+          el.scrollTop = el.scrollHeight;
+        }
+      });
+    },
   },
   created() {
+    this.loadTheme();
     this.currentUser = localStorage.getItem('username') || '用户';
     this.fetchCurrentUserInfo();
     this.checkIfAdmin();
@@ -688,11 +926,34 @@ export default {
   --container-bg: #f0f2f5;
   --danger-color: #e74c3c;
   --success-color: #2ecc71;
+  --sent-bubble-bg: #dcf8c6;
+  --received-bubble-bg: white;
+  --file-link-bg: #f0f0f0;
+  --file-link-hover-bg: #e0e0e0;
+  --modal-bg: lightblue;
 
   display: flex;
   height: 100vh;
   background-color: var(--container-bg);
   font-family: 'Helvetica Neue', sans-serif;
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.chat-container[data-theme="dark"] {
+  --input-focus: #7F5AF0; /* Purple for active/focus elements */
+  --font-color: #F5F5F5; /* White text */
+  --font-color-sub: #a0a0a0; /* Grey for sub-text */
+  --bg-color: #242424; /* Dark grey for component backgrounds */
+  --main-color: #4a4a68; /* Dim purple for borders */
+  --base-bg: #1A1A1A; /* Near-black for sidebar */
+  --container-bg: #121212; /* Black for main background */
+  --danger-color: #e74c3c;
+  --success-color: #2ecc71;
+  --sent-bubble-bg: #372948; /* Dark purple for sent messages */
+  --received-bubble-bg: #333333; /* Dark grey for received messages */
+  --file-link-bg: #333333;
+  --file-link-hover-bg: #444444;
+  --modal-bg: #1A1A1A;
 }
 
 /* 共享样式类 */
@@ -801,9 +1062,14 @@ export default {
   transform: translate(4px, 4px);
 }
 
+.friends-list li.active .friend-info {
+    color: white;
+}
+
 .friend-info {
   flex-grow: 1;
   position: relative; /* For positioning the indicator */
+  color: var(--font-color);
 }
 
 /* 聊天窗口 */
@@ -833,7 +1099,7 @@ export default {
 
 .welcome-message p {
   font-size: 1.5rem;
-  color: #777;
+  color: var(--font-color-sub);
   font-weight: 300;
 }
 
@@ -870,31 +1136,48 @@ export default {
   flex-direction: column;
 }
 
+.message-header {
+  display: flex;
+  gap: 0.7em;
+  align-items: center;
+  margin-bottom: 4px;
+  padding: 0 2px; /* Slight padding for alignment */
+}
+
 .sender-name {
   font-size: 0.8rem;
-  color: #666;
-  margin-bottom: 4px;
+  color: var(--font-color-sub);
+}
+
+.message-timestamp {
+  font-size: 0.75em;
+  color: var(--font-color-sub);
+}
+
+.message-wrapper.sent .message-header {
+  flex-direction: row-reverse;
 }
 
 .message-wrapper.sent .sender-name {
-  align-self: flex-end;
+  /* No longer needed as header is reversed */
 }
 
 .message-wrapper.received .sender-name {
-  align-self: flex-start;
+  /* No longer needed */
 }
 
 .message {
   padding: 10px 15px;
   max-width: fit-content;
   border-radius: 15px; /* 更圆润的聊天气泡 */
+  color: var(--font-color);
 }
 .sent-bubble {
-  background-color: #dcf8c6;
+  background-color: var(--sent-bubble-bg);
   border-top-right-radius: 0;
 }
 .received-bubble {
-  background-color: white;
+  background-color: var(--received-bubble-bg);
   border-top-left-radius: 0;
 }
 
@@ -997,6 +1280,22 @@ button:active {
   z-index: 10;
 }
 
+.file-preview {
+  position: absolute;
+  bottom: 100%;
+  left: 50px;
+  margin-bottom: 10px;
+  background: var(--bg-color);
+  padding: 8px 15px;
+  border-radius: 5px;
+  border: 2px solid var(--main-color);
+  box-shadow: 4px 4px var(--main-color);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .image-preview img {
   max-width: 80px;
   max-height: 80px;
@@ -1065,12 +1364,13 @@ button:active {
 }
 
 .modal-content {
-  background: var(--base-bg, lightblue);
+  background: var(--modal-bg);
   padding: 25px;
   border-radius: 5px;
   width: 90%;
   max-width: 400px;
   text-align: center;
+  color: var(--font-color);
 }
 
 .modal-content h3 {
@@ -1093,7 +1393,7 @@ button:active {
   background-color: var(--bg-color, beige);
   padding: 10px;
   border-radius: 5px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--main-color);
   min-height: 50px;
   white-space: pre-wrap; /* Preserve line breaks */
 }
@@ -1127,6 +1427,42 @@ button:active {
   background-color: var(--danger-color, #e74c3c);
   border-radius: 50%;
   border: 1px solid #333; /* Matched to status-dot border */
+}
+
+.typing-indicator-container {
+  height: 20px;
+  padding: 0 20px;
+  box-sizing: border-box;
+}
+
+.typing-indicator {
+  color: var(--font-color-sub);
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.file-link {
+    display: block;
+    padding: 10px;
+    background-color: var(--file-link-bg);
+    border-radius: 5px;
+    color: var(--font-color);
+    text-decoration: none;
+    font-weight: bold;
+    transition: background-color 0.2s;
+}
+
+.file-link:hover {
+    background-color: var(--file-link-hover-bg);
+}
+
+.sidebar-buttons {
+    display: flex;
+    gap: 10px;
+}
+.sidebar-buttons .settings-button,
+.sidebar-buttons .theme-toggle-button {
+    width: 100%;
 }
 
 </style> 
