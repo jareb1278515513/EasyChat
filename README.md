@@ -1,6 +1,6 @@
 <div align="center">
   <h1>
-    <img src="https://raw.githubusercontent.com/Maiiialen/EasyChat/master/frontend/public/favicon.ico" width="30" alt="logo">
+    <img src="img/logo.png" width="30" alt="logo">
     EasyChat - 安全的端到端加密即时通讯
   </h1>
   <p>
@@ -18,10 +18,6 @@
 
 ---
 
-<!-- 可以在这里插入一张应用的截图或GIF动图 -->
-<!-- <p align="center">
-  <img src="YOUR_SCREENSHOT.png" alt="EasyChat Screenshot" width="700"/>
-</p> -->
 
 ## 📜 目录
 
@@ -30,6 +26,7 @@
   - [安全特性](#安全特性)
   - [管理员功能](#管理员功能)
 - [🛠️ 技术栈与架构](#️-技术栈与架构)
+- [🏗️ 项目代码结构](#️-项目代码结构)
 - [🚀 安装与运行](#-安装与运行)
 - [🤝 贡献指南](#-贡献指南)
 - [📝 许可证](#-许可证)
@@ -45,6 +42,9 @@
 - **🟢 实时状态**: 通过 WebSocket 实时更新好友的在线状态。
 - **💬 P2P 即时通讯**: 用户间的聊天消息通过 WebRTC (PeerJS) 直接在客户端之间传输，不经过中心服务器。
 - **⚙️ 设置中心**: 用户可以随时更改自己的邮箱和密码，并提供相应的输入验证。
+- **😉 发送表情符号**: 在聊天中轻松选择并发送 Emoji，丰富表达方式。
+- **ℹ️ 查看好友资料**: 在聊天界面方便地查看好友的公开个人信息。
+- **⚙️ 个性化设置中心**: 用户可以随时更改自己的邮箱、密码，并编辑个人资料（性别、年龄、个人简介）。
 
 ### 安全特性
 - **🔒 端到端加密 (E2EE)**: 在建立P2P连接后，客户端之间会通过RSA非对称加密协商一个一次性的AES对称密钥。所有后续的聊天消息都使用此密钥进行加密，确保只有通信双方可以解密消息内容。
@@ -70,6 +70,39 @@
   系统采用 **客户端/服务器 (C/S) 与 P2P 的混合架构**。
   - **中心服务器**: 负责处理用户注册、登录认证、好友关系管理、用户状态维护以及P2P连接建立前的信令交换。
   - **P2P网络**: 一旦好友双方建立连接，后续的聊天消息将直接通过P2P网络传输，不经过服务器，保证了通信的低延迟和私密性。
+
+## 🏗️ 项目代码结构
+```
+EasyChat/
+├── backend/            # 后端 Flask 应用
+│   ├── app/            # 应用核心代码包
+│   │   ├── api/        # RESTful API 蓝图
+│   │   ├── __init__.py # 应用工厂函数
+│   │   ├── models.py   # SQLAlchemy 数据库模型
+│   │   └── socket_events.py # Socket.IO 事件处理器
+│   ├── migrations/     # 数据库迁移脚本
+│   ├── venv/           # Python 虚拟环境
+│   ├── config.py       # 配置文件
+│   ├── requirements.txt# Python 依赖
+│   └── run.py          # 应用启动脚本
+│
+├── frontend/           # 前端 Vue.js 应用
+│   ├── public/         # 公共文件 (如 index.html)
+│   ├── src/            # 前端源码
+│   │   ├── assets/     # 静态资源 (图片等)
+│   │   ├── router/     # 路由配置
+│   │   ├── services/   # API, Socket, PeerJS 服务封装
+│   │   ├── utils/      # 工具函数 (加密、隐写)
+│   │   ├── views/      # 页面级组件 (LoginView, ChatView 等)
+│   │   ├── App.vue     # 根组件
+│   │   └── main.js     # 应用入口
+│   ├── package.json    # npm 依赖和脚本
+│   └── vue.config.js   # Vue CLI 配置文件
+│
+├── img/                # README 文档中使用的图片
+├── BACKEND_API_GUIDE.md# 后端 API 详细文档
+└── README.md           # 项目说明文档
+```
 
 ## 🚀 安装与运行
 
@@ -114,7 +147,7 @@ npm run serve
 ```
 > 前端开发服务器将运行在 `https://localhost:8081` (或其他指定端口)。
 >
-> **注意**：当同一个主机启动多个前端以模拟多用户时，请使用不同的浏览器或者打开浏览器的隐私模式。
+> **注意**：当同一个主机启动多个前端以模拟多用户时，推荐使用不同的浏览器或者打开浏览器的隐私模式。
 
 ### 3. 快速启动 (Windows)
 为了方便 Windows 用户，项目根目录提供了两个批处理脚本：
@@ -139,4 +172,4 @@ npm run serve
 
 ## 📚 API 文档
 
-详细的后端 API 和 WebSocket 事件说明，请参阅项目中的 `BACKEND_API_GUIDE.md` 文件。 
+详细的后端 API 和 WebSocket 事件说明，请参阅项目中的 `

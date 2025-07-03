@@ -47,13 +47,17 @@
       <button @click="logout" class="logout-button">登出</button>
     </div>
     <div class="chat-window">
+      <div class="chat-header bordered-and-shadowed" v-if="currentRecipient">
+        <span>正在与 <strong>{{ currentRecipient }}</strong> 聊天</span>
+        <button @click="showFriendProfile(currentRecipient)" class="info-btn" title="查看好友信息">ℹ️</button>
+      </div>
       <div class="messages-area bordered-and-shadowed">
         <div v-if="!currentRecipient" class="placeholder-text">选择一位好友开始聊天</div>
         <div v-else>
           <div v-for="(msg, index) in messages[currentRecipient]" :key="index" :class="['message', msg.from === currentUser ? 'sent' : 'received']">
             <strong>{{ msg.from }}:</strong>
             <template v-if="msg.type === 'steganography_image'">
-              <img :src="msg.imageUrl" alt="Steganography Image" class="chat-image" @click="revealMessage(msg.imageUrl)">
+              <img :src="msg.imageUrl" alt="隐写图片" class="chat-image" @click="revealMessage(msg.imageUrl)">
               <button @click="revealMessage(msg.imageUrl)" class="reveal-btn">显示隐藏信息</button>
             </template>
             <template v-else>
@@ -64,19 +68,42 @@
       </div>
       <div class="message-input" v-if="currentRecipient">
         <div v-if="selectedImageFile" class="image-preview">
-          <img :src="imagePreviewUrl" alt="Preview">
+          <img :src="imagePreviewUrl" alt="预览">
           <button @click="clearSelectedImage" class="clear-preview-btn">×</button>
         </div>
         <input type="file" ref="imageInput" @change="handleImageSelected" accept="image/*" style="display: none;">
         <button @click="triggerImageUpload" class="upload-btn" title="发送图片">🖼️</button>
+        
+        <!-- Emoji Picker Button and Component -->
+        <div class="emoji-picker-container">
+          <button @click="toggleEmojiPicker" class="upload-btn" title="选择表情">😃</button>
+          <emoji-picker v-if="showEmojiPicker" @emoji-click="onEmojiClick" class="emoji-picker"></emoji-picker>
+        </div>
+        
         <input type="text" v-model="newMessage" @keyup.enter="sendMessage" :placeholder="imagePreviewUrl ? '输入要隐藏在图片中的消息...' : '输入消息...'" class="bordered-and-shadowed">
         <button @click="sendMessage">发送</button>
       </div>
     </div>
+
+    <!-- Friend Profile Modal -->
+    <div v-if="showProfileModal" class="modal-overlay" @click.self="closeProfileModal">
+      <div class="modal-content bordered-and-shadowed">
+        <h3>{{ friendProfile.username }} 的资料</h3>
+        <div class="profile-details">
+          <p><strong>性别:</strong> {{ friendProfile.gender || '未指定' }}</p>
+          <p><strong>年龄:</strong> {{ friendProfile.age || '未指定' }}</p>
+          <p><strong>简介:</strong></p>
+          <p class="bio">{{ friendProfile.bio || '暂无简介' }}</p>
+        </div>
+        <button @click="closeProfileModal" class="close-modal-btn">关闭</button>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script>
+import 'emoji-picker-element'; // 导入 emoji-picker 组件
 import socket from '@/services/socket';
 import api from '@/services/api';
 import * as crypto from '@/utils/crypto';
@@ -101,7 +128,10 @@ export default {
       currentUser: '',
       selectedImageFile: null,
       imagePreviewUrl: null,
-      isAdmin: false
+      isAdmin: false,
+      showEmojiPicker: false, // 控制 emoji 选择器的显示状态
+      showProfileModal: false, // 控制好友资料模态框的显示
+      friendProfile: null // 存储正在查看的好友资料
     };
   },
   methods: {
@@ -302,7 +332,7 @@ export default {
 
         } catch (error) {
           console.error('信息隐藏或发送失败:', error);
-          alert('发送图片失败: ' + error.message);
+          alert('发送图片失败：' + error.message);
         }
         return;
       }
@@ -373,7 +403,7 @@ export default {
           alert('好友请求已发送。');
           this.newFriendUsername = '';
         })
-        .catch(error => alert('发送请求时出错: ' + (error.response?.data?.message || error.message)));
+        .catch(error => alert('发送请求失败: ' + (error.response?.data?.message || error.message)));
     },
 
     respondToRequest(requestId, action) {
@@ -383,7 +413,7 @@ export default {
           this.fetchFriendRequests();
           this.fetchFriends();
         })
-        .catch(error => alert('响应请求时出错: ' + (error.response?.data?.message || error.message)));
+        .catch(error => alert('响应请求失败: ' + (error.response?.data?.message || error.message)));
     },
     
     removeFriend(friendId) {
@@ -393,7 +423,7 @@ export default {
             alert('好友已删除。');
             this.fetchFriends();
           })
-          .catch(error => alert('删除好友时出错: ' + (error.response?.data?.message || error.message)));
+          .catch(error => alert('删除好友失败: ' + (error.response?.data?.message || error.message)));
       }
     },
 
@@ -430,8 +460,30 @@ export default {
         }
       } catch (error) {
         console.error('提取信息时出错:', error);
-        alert('提取信息失败: ' + error.message);
+        alert('提取信息失败：' + error.message);
       }
+    },
+    // --- Emoji Picker Methods ---
+    toggleEmojiPicker() {
+      this.showEmojiPicker = !this.showEmojiPicker;
+    },
+    onEmojiClick(event) {
+      this.newMessage += event.detail.unicode;
+      this.showEmojiPicker = false; // 选择后自动关闭
+    },
+    // --- Profile Modal ---
+    async showFriendProfile(username) {
+      try {
+        const { data } = await api.getUserProfile(username);
+        this.friendProfile = data;
+        this.showProfileModal = true;
+      } catch (error) {
+        alert('获取好友资料失败: ' + (error.response?.data?.error || '未知错误'));
+      }
+    },
+    closeProfileModal() {
+      this.showProfileModal = false;
+      this.friendProfile = null;
     },
   },
   created() {
@@ -445,7 +497,7 @@ export default {
     socket.on('new_friend_request', (request) => {
       console.log('New friend request received:', request);
       this.friendRequests.unshift(request); // Add to the top of the list
-      alert(`你收到了来自 ${request.requester_username} 的好友请求！`);
+      alert(`您收到了来自 ${request.requester_username} 的好友请求！`);
     });
 
     this.statusInterval = setInterval(this.fetchFriends, 10000);
@@ -710,4 +762,92 @@ button:active {
   border-radius: 50%;
   border: 2px solid var(--main-color);
 }
+
+/* Emoji Styles */
+.emoji-picker-container {
+  position: relative;
+}
+
+.emoji-picker {
+  position: absolute;
+  bottom: 50px; /* 定位到输入框上方 */
+  right: 0;
+  z-index: 1000;
+}
+
+/* Chat Header Styles */
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  background-color: #f5f5f5;
+}
+
+.info-btn {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Profile Modal Styles */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+}
+
+.modal-content {
+  background: var(--base-bg, lightblue);
+  padding: 25px;
+  border-radius: 5px;
+  width: 90%;
+  max-width: 400px;
+  text-align: center;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  border-bottom: 2px solid var(--main-color, black);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.profile-details {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.profile-details p {
+  margin: 10px 0;
+}
+
+.profile-details .bio {
+  background-color: var(--bg-color, beige);
+  padding: 10px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  min-height: 50px;
+  white-space: pre-wrap; /* Preserve line breaks */
+}
+
+.close-modal-btn {
+  padding: 10px 20px;
+  border: none;
+  background-color: #4CAF50;
+  color: white;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
 </style> 

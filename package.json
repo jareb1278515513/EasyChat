@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "emoji-picker-element": "^1.26.3",
+    "emoji-picker-vue": "^1.0.1"
+  }
+}

@@ -56,7 +56,7 @@ export default {
         } catch (error) {
           console.error('密钥生成或上传失败:', error);
           alert('无法设置加密密钥，请重试。');
-          return; // Stop if key setup fails
+          return;
         }
 
         // Initialize PeerJS connection
@@ -94,7 +94,7 @@ export default {
         this.$router.push('/chat');
       } catch (error) {
         console.error('登录失败:', error.response ? error.response.data : error.message);
-        alert('登录失败: ' + (error.response ? error.response.data.message : '网络错误'));
+        alert('登录失败：' + (error.response?.data?.message || '网络错误'));
       }
     }
   }

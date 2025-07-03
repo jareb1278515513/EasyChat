@@ -103,7 +103,7 @@ export default {
         this.$router.push('/login');
       } catch (error) {
         console.error('注册失败:', error.response ? error.response.data : error.message);
-        alert('注册失败: ' + (error.response ? error.response.data.error : '网络错误'));
+        alert('注册失败：' + (error.response ? error.response.data.error : '网络错误'));
       }
     }
   }

@@ -37,6 +37,31 @@
           <button type="submit" :disabled="!isPasswordFormValid">更新密码</button>
         </form>
       </div>
+
+      <div class="settings-section">
+        <h3>个人资料</h3>
+        <form @submit.prevent="updateProfile" class="settings-form">
+          <div class="form-group">
+            <label for="gender">性别</label>
+            <select id="gender" v-model="profile.gender" class="bordered-and-shadowed">
+              <option value="">未指定</option>
+              <option value="男">男</option>
+              <option value="女">女</option>
+              <option value="其他">其他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="age">年龄</label>
+            <input type="number" id="age" v-model.number="profile.age" min="0" class="bordered-and-shadowed">
+          </div>
+          <div class="form-group">
+            <label for="bio">个人简介</label>
+            <textarea id="bio" v-model="profile.bio" rows="3" class="bordered-and-shadowed" style="height: auto;"></textarea>
+          </div>
+          <button type="submit">更新资料</button>
+        </form>
+      </div>
+
       <button @click="goBack" class="back-btn">返回</button>
     </div>
   </div>
@@ -55,6 +80,11 @@ export default {
       confirmPassword: '',
       emailError: '',
       passwordStrength: 0,
+      profile: {
+        gender: '',
+        age: null,
+        bio: ''
+      }
     };
   },
   computed: {
@@ -78,6 +108,20 @@ export default {
     }
   },
   methods: {
+    async fetchUserProfile() {
+      try {
+        const username = localStorage.getItem('username');
+        if (username) {
+          const { data } = await api.getUserProfile(username);
+          this.profile.gender = data.gender || '';
+          this.profile.age = data.age;
+          this.profile.bio = data.bio || '';
+        }
+      } catch (error) {
+        console.error('获取用户资料失败:', error);
+        // 不打扰用户，静默处理
+      }
+    },
     validateEmail() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!this.newEmail) {
@@ -139,9 +183,20 @@ export default {
         alert('密码更新失败：' + (error.response?.data?.error || '未知错误'));
       }
     },
+    async updateProfile() {
+      try {
+        await api.updateProfile(this.profile);
+        alert('个人资料更新成功！');
+      } catch (error) {
+        alert('个人资料更新失败：' + (error.response?.data?.error || '未知错误'));
+      }
+    },
     goBack() {
       this.$router.push('/chat');
     }
+  },
+  created() {
+    this.fetchUserProfile();
   }
 };
 </script>

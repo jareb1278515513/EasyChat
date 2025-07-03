@@ -42,6 +42,11 @@ class User(db.Model):
     public_key = db.Column(db.Text, nullable=True)  # 用户公钥(用于加密通信)
     is_admin = db.Column(db.Boolean, default=False, nullable=False)  # 是否是管理员
 
+    # 新增的个人信息字段
+    gender = db.Column(db.String(10), nullable=True)  # 性别
+    age = db.Column(db.Integer, nullable=True)  # 年龄
+    bio = db.Column(db.String(200), nullable=True) # 个人简介
+
     # 好友关系(多对多)
     friends = db.relationship('User',
                               secondary=friendships,

@@ -64,7 +64,7 @@ export default {
         const response = await api.adminGetAllUsers();
         this.users = response.data;
       } catch (error) {
-        alert('获取用户列表失败: ' + (error.response?.data?.error || '未知错误'));
+        alert('获取用户列表失败：' + (error.response?.data?.error || '未知错误'));
       }
     },
     async disconnectUser(username) {
@@ -74,7 +74,7 @@ export default {
         alert(response.data.message || `已向 ${username} 发送下线信号。`);
         await this.fetchUsers(); // Refresh list
       } catch (error) {
-        alert('操作失败: ' + (error.response?.data?.error || '未知错误'));
+        alert('操作失败：' + (error.response?.data?.error || '未知错误'));
       }
     },
     async deleteUser(username) {
@@ -84,7 +84,7 @@ export default {
         alert(response.data.message || `${username} 已被删除。`);
         await this.fetchUsers(); // Refresh list
       } catch (error) {
-        alert('删除失败: ' + (error.response?.data?.error || '未知错误'));
+        alert('删除失败：' + (error.response?.data?.error || '未知错误'));
       }
     },
     goBack() {

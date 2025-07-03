@@ -59,6 +59,12 @@ export default {
   updatePassword(passwords) {
     return apiClient.put('/user/password', passwords);
   },
+  updateProfile(profileData) {
+    return apiClient.put('/user/profile', profileData);
+  },
+  getUserProfile(username) {
+    return apiClient.get(`/users/${username}/profile`);
+  },
   // Admin functions
   adminGetAllUsers() {
     return apiClient.get('/admin/users');

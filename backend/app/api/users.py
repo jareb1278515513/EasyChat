@@ -170,3 +170,35 @@ def update_password():
     user.set_password(data['new_password'])
     db.session.commit()
     return jsonify({'message': 'Password updated successfully'}), 200
+
+@bp.route('/users/<string:username>/profile', methods=['GET'])
+@token_required
+def get_user_profile(username):
+    """获取指定用户的公开信息"""
+    user = User.query.filter_by(username=username).first_or_404()
+    return jsonify({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email, # 注意：此处返回email，前端可以决定是否显示
+        'is_online': user.is_online,
+        'gender': user.gender,
+        'age': user.age,
+        'bio': user.bio
+    })
+
+@bp.route('/user/profile', methods=['PUT'])
+@token_required
+def update_profile():
+    """更新当前用户的个人资料"""
+    user = g.current_user
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'Invalid JSON'}), 400
+
+    # 使用.get()来安全地获取数据，如果不存在则保持原样
+    user.gender = data.get('gender', user.gender)
+    user.age = data.get('age', user.age)
+    user.bio = data.get('bio', user.bio)
+
+    db.session.commit()
+    return jsonify({'message': 'Profile updated successfully'}), 200
