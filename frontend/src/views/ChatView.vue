@@ -258,6 +258,8 @@ export default {
     },
     // --- PeerJS Connection Management ---
     selectRecipient(username) {
+      if (this.currentRecipient === username) return; // Do nothing if clicking the same user
+
       const previousRecipient = this.currentRecipient;
       if (previousRecipient && this.typingTimers[previousRecipient]) {
         clearTimeout(this.typingTimers[previousRecipient]);
@@ -268,6 +270,8 @@ export default {
         delete this.typingTimers[previousRecipient];
       }
       this.currentRecipient = username;
+      this.newMessage = ''; // Clear message input
+      this.clearSelectedImage(); // Clear any selected file/image
       
       this.loadMessages(username);
       this.scrollToBottom();
@@ -454,6 +458,7 @@ export default {
         if (recipientUsername === this.currentRecipient) {
             this.scrollToBottom();
         }
+        this.moveFriendToTop(recipientUsername);
         return;
       }
 
@@ -496,6 +501,7 @@ export default {
           }
           this.messages[recipientUsername].push(messageToStore);
           this.saveMessages(recipientUsername); // Save after receiving message
+          this.moveFriendToTop(recipientUsername);
 
           if (this.currentRecipient !== recipientUsername) {
             const friend = this.friends.find(f => f.username === recipientUsername);
@@ -582,6 +588,7 @@ export default {
               });
               this.saveMessages(this.currentRecipient);
               this.scrollToBottom();
+              this.moveFriendToTop(this.currentRecipient);
               
               this.clearSelectedImage();
               this.newMessage = '';
@@ -635,6 +642,7 @@ export default {
                 });
                 this.saveMessages(this.currentRecipient);
                 this.scrollToBottom();
+                this.moveFriendToTop(this.currentRecipient);
                 this.clearSelectedImage();
 
             } catch (error) {
@@ -669,6 +677,7 @@ export default {
           this.messages[this.currentRecipient].push({ from: this.currentUser, message: this.newMessage, avatar_url: this.currentUserAvatar, timestamp: Date.now() });
           this.saveMessages(this.currentRecipient); // Save sent text message
           this.scrollToBottom();
+          this.moveFriendToTop(this.currentRecipient);
           this.newMessage = '';
         } catch (error) {
           console.error('发送消息失败:', error);
@@ -878,6 +887,22 @@ export default {
           el.scrollTop = el.scrollHeight;
         }
       });
+    },
+    moveFriendToTop(username) {
+      if (!username || username === AI_ASSISTANT.username) {
+        return; // Don't move the AI assistant
+      }
+
+      const friendIndex = this.friends.findIndex(f => f.username === username);
+
+      // If friend is not found, or is already the top-most user (right after AI), do nothing.
+      // The AI assistant is always at index 0.
+      if (friendIndex === -1 || friendIndex === 1) {
+        return;
+      }
+      
+      const [friend] = this.friends.splice(friendIndex, 1);
+      this.friends.splice(1, 0, friend); // Add to the second position in the array
     },
   },
   created() {
